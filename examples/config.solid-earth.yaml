@@ -1,0 +1,1790 @@
+# Example: solid Earth geophysics (seismology, geodesy, volcanology)
+#
+# This is a production-scale reference configuration with 40+ journal feeds.
+# Slack channel IDs are placeholders — replace C01234567 / C01234568 with your own.
+# Copy sections you need into config.yaml, or use this file directly:
+#   cp examples/config.solid-earth.yaml config.yaml
+
+hours_back: 72
+keep_hours: 1000
+
+# 各ワークスペースごとの設定
+workspaces:
+  - name: default  # テンプレート用のワークスペース名
+    arxiv:
+      slack_channel_id: C01234567  # Slack チャンネルID
+      categories:
+        - physics.geo-ph  # 例: astro-ph.EP
+      keywords:
+        - seism
+        - earthquake
+        - seismic
+        - geodesy
+        - volcan # フィルタリング用キーワード
+    eartharxiv:
+      slack_channel_id: C01234567
+      keywords:
+        - seismic
+        - earthquake
+        - volcan
+        - distributed acoustic sensing
+        - ambient noise
+        - tomography
+        - geodesy
+
+    journals:
+      - title: EGUsphere
+        source_type: copernicus_recent
+        rss_url: https://egusphere.copernicus.org/
+        copernicus_recent_url: https://egusphere.copernicus.org/
+        copernicus_recent_max_entries: 100
+        abstract_tag: summary
+        slack_channel_id: C01234567
+        include_keywords:
+          - seismology
+          - earthquake
+          - seismic
+          - volcan
+          - geodesy
+          - tomography
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Erratum
+          - Corrigendum
+          - Correction
+          - Comment on
+          - Reply to the comment
+          - Reply to comment
+          - Book review
+          - Obituary
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            EGUsphere preprintのうち、地震学者に有用な固体地球科学・地球物理学論文を対象とする。
+            地震、断層、震源過程、地震波、地震活動、スロー地震、微動、強震動、
+            火山性地震、火山体構造、測地、地殻変動、重力、地震波トモグラフィ、
+            地殻・リソスフェア・マントル構造、沈み込み帯、テクトニクス、津波を relevant とする。
+            純粋な気候、水文、海洋、大気、氷床、地球化学、堆積学のみの論文は対象外。
+            判断が難しい場合は relevant ではなく uncertain とする。
+
+
+      - title: Science
+        full_title: Science
+        issn: 0036-8075
+        eissn: 1095-9203
+        rss_url: https://www.science.org/action/showFeed?feed=rss&jc=science&type=etoc
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234568
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        prefilter_uncertain: skip
+        include_keywords:
+          - earthquake
+          - seism
+          - seismic
+          - seismology
+          - seismicity
+          - fault
+          - rupture
+          - slow slip
+          - tremor
+          - subduction
+          - tectonic
+          - geodynamic
+          - geodynamics
+          - deformation
+          - crustal deformation
+          - coseismic
+          - postseismic
+          - interseismic
+          - crust
+          - crustal
+          - lithosphere
+          - mantle
+          - core
+          - tomography
+          - anisotropy
+          - attenuation
+          - scattering
+          - geodesy
+          - geodetic
+          - gnss
+          - gps
+          - insar
+          - gravity
+          - gravimetry
+          - geoid
+          - volcano
+          - volcanic
+          - magma
+          - caldera
+          - tsunami
+          - landslide
+          - mass redistribution
+          - loading
+          - surface displacement
+          - ground deformation
+          - das
+          - distributed acoustic sensing
+          - fiber optic
+        exclude_title_patterns:
+          - Editorial
+          - Corrigendum
+          - Correction
+          - Technical Comment
+          - Response to Technical Comment
+          - Retraction
+          - Expression of concern
+          - Perspective
+          - Policy Forum
+          - News
+          - Careers
+          - Book Review
+          - This Week in Science
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Science本誌の全分野論文のうち、地震学・測地学・火山学・テクトニクス・
+            固体地球物理学の利用者に明確に有用なものだけを対象とする。
+
+            relevant とするもの：
+            地震、断層、震源過程、地震活動、地震波、地震波トモグラフィ、異方性、減衰、散乱、
+            スロー地震、微動、地殻・リソスフェア・マントル・核構造、沈み込み帯、プレート運動、
+            テクトニクス、地球内部ダイナミクス、地殻変動、GNSS、InSAR、SAR、重力、ジオイド、
+            地震時・地震間・余効変動、火山、マグマ、火山性地震、火山性微動、火山性地殻変動、
+            津波、地すべり・斜面災害、DAS、地球物理観測手法、地表荷重、質量再分配、荷重応答に関する論文。
+
+            一見すると気候、水文、雪氷、海洋、大気、地形、地球化学、惑星科学、機械学習、
+            リモートセンシングに見える論文でも、地震・断層・火山・地殻変動・測地観測・重力観測・
+            地表変形・荷重応答・地震波観測・地球内部構造との接点がAbstract内に明確に書かれていれば relevant とする。
+
+            irrelevant とするもの：
+            生命科学、医学、材料、化学、物理一般、工学一般、社会科学、気候変動、海洋循環、水文、
+            雪氷、古気候、地球化学、生物地球化学、生態、環境科学、惑星大気、惑星表層、天文学、宇宙物理、
+            政策・リスク評価が主題で、地震学・測地学・火山学・テクトニクス・固体地球物理学との
+            明確な接点がAbstract内に見えないもの。
+
+            Science掲載論文であっても、上記の接点がAbstract内に明示されていない場合は irrelevant とする。
+            「Science本誌に掲載された重要論文である」「地球科学一般である」「リモートセンシングを使っている」
+            という理由だけでは relevant にしない。
+            判断が難しい場合でも、固体地球物理学的な接点がAbstract内に明示されていなければ irrelevant とする。
+
+      - title: Science Advances
+        full_title: Science Advances
+        issn: 2375-2548
+        rss_url: https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=sciadv
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234568
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        include_keywords:
+          - seism
+          - earthquake
+          - seismic
+          - seismicity
+          - fault
+          - rupture
+          - slow slip
+          - tremor
+          - subduction
+          - tectonic
+          - geodynamic
+          - geodynamics
+          - deformation
+          - crust
+          - crustal
+          - lithosphere
+          - mantle
+          - core
+          - tomography
+          - anisotropy
+          - attenuation
+          - scattering
+          - receiver function
+          - shear-wave splitting
+          - geodesy
+          - geodetic
+          - gnss
+          - gps
+          - insar
+          - sar
+          - gravity
+          - gravimetry
+          - geoid
+          - volcano
+          - volcanic
+          - magma
+          - caldera
+          - tsunami
+          - landslide
+          - mass redistribution
+          - loading
+          - surface displacement
+          - ground deformation
+          - das
+          - distributed acoustic sensing
+          - fiber optic
+        exclude_title_patterns:
+          - Editorial
+          - Erratum
+          - Corrigendum
+          - Correction
+          - Comment on
+          - Reply to the comment
+          - Reply to comment
+          - Retraction
+          - Expression of concern
+          - Letter
+          - Perspective
+          - Profile
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Science Advances内の全分野論文のうち、地震学・測地学・火山学・テクトニクス・
+            固体地球物理学の利用者に明確に有用なものを対象とする。
+
+            relevant とするもの：
+            地震、断層、震源過程、地震活動、地震波、地震波トモグラフィ、異方性、減衰、散乱、
+            スロー地震、地殻・リソスフェア・マントル・核構造、沈み込み帯、プレート運動、
+            テクトニクス、地球内部ダイナミクス、地殻変動、GNSS、InSAR、SAR、重力、ジオイド、
+            地震時・地震間・余効変動、火山、マグマ、火山性地震、火山性微動、火山性地殻変動、
+            津波、地すべり・斜面災害、DAS、地球物理観測手法、地表荷重、質量再分配、荷重応答に関する論文。
+
+            irrelevant とするもの：
+            生命科学、医学、材料、化学、物理一般、工学一般、社会科学、気候変動、海洋循環、水文、
+            雪氷、古気候、地球化学、生物地球化学、生態、環境科学、惑星大気、惑星表層、天文学、宇宙物理、
+            政策・リスク評価が主題で、地震学・測地学・火山学・テクトニクス・固体地球物理学との
+            明確な接点がAbstract内に見えないもの。
+
+            Science Advances掲載論文であっても、上記の接点がAbstract内に明示されていない場合は irrelevant とする。
+            判断が難しい場合でも、固体地球物理学的な接点が本文に推測されるだけでAbstract内に見えない場合は irrelevant とする。
+            接点がAbstract内に見えるが、対象分野としての中心性が弱い場合のみ uncertain とする。
+
+
+      - title: PNAS Earth, Atmospheric, and Planetary Sciences
+        full_title: Proceedings of the National Academy of Sciences - Earth, Atmospheric, and Planetary Sciences
+        issn: 0027-8424
+        eissn: 1091-6490
+        rss_url: https://www.pnas.org/action/showFeed?type=searchTopic&taxonomyCode=topic&tagCode=earth-sci
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234568
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        include_keywords:
+          - seism
+          - earthquake
+          - seismic
+          - seismicity
+          - fault
+          - rupture
+          - slow slip
+          - tremor
+          - subduction
+          - tectonic
+          - geodynamic
+          - geodynamics
+          - deformation
+          - crust
+          - crustal
+          - lithosphere
+          - mantle
+          - core
+          - tomography
+          - anisotropy
+          - attenuation
+          - scattering
+          - receiver function
+          - shear-wave splitting
+          - geodesy
+          - geodetic
+          - gnss
+          - gps
+          - insar
+          - sar
+          - gravity
+          - gravimetry
+          - geoid
+          - volcano
+          - volcanic
+          - magma
+          - caldera
+          - tsunami
+          - landslide
+          - mass redistribution
+          - loading
+          - surface displacement
+          - ground deformation
+        exclude_title_patterns:
+          - Editorial
+          - Retraction
+          - Expression of concern
+          - Letter
+          - Perspective
+          - Profile
+          - In This Issue
+          - From the Cover
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            PNAS Earth, Atmospheric, and Planetary Sciences feedの論文のうち、
+            地震学・測地学・火山学・テクトニクス・固体地球物理学の利用者に明確に有用なものを対象とする。
+
+            relevant とするもの：
+            地震、断層、震源過程、地震活動、地震波、地震波トモグラフィ、異方性、減衰、散乱、
+            スロー地震、地殻・リソスフェア・マントル・核構造、沈み込み帯、プレート運動、
+            テクトニクス、地球内部ダイナミクス、地殻変動、GNSS、InSAR、SAR、重力、ジオイド、
+            地震時・地震間・余効変動、火山、マグマ、火山性地震、火山性微動、火山性地殻変動、
+            津波、地すべり・斜面災害、地表荷重、質量再分配、荷重応答に関する論文。
+
+            irrelevant とするもの：
+            大気科学、気候変動、海洋循環、水文、雪氷、古気候、地球化学、生物地球化学、
+            生態、環境科学、惑星大気、惑星表層、天文学、宇宙物理、社会科学、政策・リスク評価が主題で、
+            地震学・測地学・火山学・テクトニクス・固体地球物理学との明確な接点がAbstract内に見えないもの。
+
+            PNAS掲載論文であっても、上記の接点がAbstract内に明示されていない場合は irrelevant とする。
+            判断が難しい場合でも、固体地球物理学的な接点が本文に推測されるだけでAbstract内に見えない場合は irrelevant とする。
+            接点がAbstract内に見えるが、対象分野としての中心性が弱い場合のみ uncertain とする。
+
+
+      - title: BSSA
+        rss_url: https://pubs.geoscienceworld.org/rss/site_131/advanceAccess_66.xml
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234568
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Book review
+          - Obituary
+    
+      - title: SRL
+        rss_url: http://pubs.geoscienceworld.org/rss/site_129/advanceAccess_65.xml
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234568
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Book review
+          - Obituary
+          - News and Notes
+    
+      - title: TSR
+        rss_url: https://pubs.geoscienceworld.org/rss/site_180/91.xml
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234568
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Book review
+          - Obituary
+          - Memoriam
+    
+      - title: Geophysics
+        rss_url: https://pubs.geoscienceworld.org/rss/site_143/advanceAccess_72.xml
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234568
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Book review
+          - Obituary
+
+      - title: TLE
+        rss_url: https://pubs.geoscienceworld.org/rss/site_145/73.xml
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234567
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial Calendar
+          - Board Report
+          - Meetings Calendar
+          - Membership
+          - The Leading Edge Digital Edition
+          - Seismic Soundoff
+          - Book review
+          - Obituary
+          - Memoriam
+          - Introduction to this special section
+          - President’s Page
+          - President's Page
+
+
+      - title: GJI
+        rss_url: https://academic.oup.com/rss/site_5282/advanceAccess_3148.xml
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234568
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Book review
+          - Obituary
+          - In Memoriam
+
+
+      - title: Seismica
+        rss_url: https://seismica.library.mcgill.ca/gateway/plugin/WebFeedGatewayPlugin/rss
+        link_tag: link
+        abstract_tag: description
+        slack_channel_id: C01234568
+
+      - title: Volcanica
+        full_title: Volcanica
+        issn: 2610-3540
+        rss_url: https://www.jvolcanica.org/ojs/index.php/volcanica/gateway/plugin/WebFeedGatewayPlugin/rss
+        link_tag: link
+        abstract_tag: description
+        slack_channel_id: C01234567
+        metadata_fallback:
+          - openalex
+          - crossref
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Volcanica の論文のうち、地震学・火山物理学・測地学・固体地球物理学の
+            研究者に有用なものを対象とする。
+
+            relevant とするもの：
+            火山性地震、火山性微動、火山性低周波地震、噴火前兆、火山体構造、
+            火山性地殻変動、GNSS、InSAR、SAR、重力、比抵抗、電磁気、磁気、
+            地熱・熱水系の地球物理観測、火山周辺の地震活動、火山体内部構造、
+            地震波トモグラフィ、ambient noise 解析、DAS・高密度地震観測、
+            火山監視・噴火予測のうち地震・測地・地球物理観測データに基づくもの。
+            火山監視体制や観測網に関する報告でも、地震観測、測地観測、地球物理観測、
+            または火山活動評価手法が具体的に含まれる場合は relevant とする。
+
+            irrelevant とするもの：
+            純粋な岩石学、鉱物学、地球化学、噴出物記載、火山灰層序、年代測定、
+            火山地形記載、噴火史のみが主題で、地震・測地・地球物理観測・地下構造推定との
+            明確な接点がAbstract内に見えないもの。火山災害の社会影響、教育、観光、
+            健康影響、環境影響、リスクコミュニケーションのみを扱う論文も対象外とする。
+
+            判断が難しい場合は relevant ではなく uncertain とする。
+        prefilter_uncertain: skip
+
+
+      - title: AGU Seismology
+        rss_url: https://agupubs.onlinelibrary.wiley.com/action/showFeed?ui=0&mi=5e7lxtl&type=search&feed=rss&query=%2526ConceptID%253D103709%2526content%253DarticlesChapters%2526target%253Ddefault
+        link_tag: link
+        abstract_tag: content
+        slack_channel_id: C01234568
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+          - Obituary
+
+
+      - title: AGU Tectonophysics
+        rss_url: https://agupubs.onlinelibrary.wiley.com/action/showFeed?ui=0&mi=5e7lxtl&type=search&feed=rss&query=%2526ConceptID%253D103744%2526content%253DarticlesChapters%2526target%253Ddefault
+        link_tag: link
+        abstract_tag: content
+        slack_channel_id: C01234568
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+          - Obituary
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            AGU Tectonophysics feedの論文のうち、地震学・測地学・テクトニクス・
+            固体地球物理学の利用者に有用なものを対象とする。
+
+            relevant とするもの：
+            断層、活断層、沈み込み帯、プレート境界、衝突帯、リフト、造山帯、
+            地殻変動、地震時・地震間・余効変動、GNSS、InSAR、地震活動、震源過程、
+            地震波構造、地殻・リソスフェア・マントル構造、岩石摩擦、流体圧、断層力学、
+            地球力学シミュレーションに関する論文。
+
+            irrelevant とするもの：
+            堆積学、地形発達、砂丘・風成堆積物、鉱物組成、地球化学、古気候、
+            純粋な岩石学・年代学・地域地質のみが主題で、
+            地震・断層・地殻変動・地球物理観測・固体地球力学との明確な接点がAbstract内に見えないもの。
+
+            判断が難しい場合は irrelevant ではなく uncertain とする。
+
+      - title: AGU Volcanology
+        rss_url: https://agupubs.onlinelibrary.wiley.com/action/showFeed?ui=0&mi=5e7lxtl&type=search&feed=rss&query=%2526ConceptID%253D103726%2526content%253DarticlesChapters%2526target%253Ddefault
+        link_tag: link
+        abstract_tag: content
+        slack_channel_id: C01234568
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+          - Obituary
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            AGU Volcanology feedの論文のうち、地震学・火山学・固体地球物理学の利用者に有用なものを対象とする。
+
+            relevant とするもの：
+            火山、マグマ、噴火、カルデラ、火山性地震、火山性微動、火山体構造、
+            地殻変動、InSAR/GNSSによる火山変動、火山ガスと火山活動、マグマ供給系、
+            火山性流体、地熱系、火山災害、火山地域の地震活動、火山・断層・地殻変動との関係。
+
+            一見すると気象・水文・斜面災害・気候に見える論文でも、
+            火山活動、火山災害、火山体変形、火山性地震、火山観測との接点が
+            Abstract内に明確に書かれていれば relevant とする。
+
+            irrelevant とするもの：
+            単なる熱波、台風、植生、気候変動、大気放射、一般的な気象・気候論文で、
+            火山・固体地球・地震学との接点がAbstract内に見えないもの。
+
+            判断が難しい場合は uncertain とする。
+
+      - title: AGU Geodesy and Gravity
+        rss_url: https://agupubs.onlinelibrary.wiley.com/action/showFeed?ui=0&mi=5e7lxtl&type=search&feed=rss&query=%2526ConceptID%253D103750%2526content%253DarticlesChapters%2526target%253Ddefault
+        link_tag: link
+        abstract_tag: content
+        slack_channel_id: C01234568
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+          - Obituary
+          - Memoriam
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            AGU Geodesy and Gravity feedの論文のうち、地震学・測地学・固体地球物理学の利用者に有用なものを対象とする。
+
+            relevant とするもの：
+            GNSS、InSAR、SAR、SLR、VLBI、GRACE/GRACE-FO、SWOT、衛星高度計、重力、ジオイド、
+            地表変位、地殻変動、プレート運動、断層すべり、地震時変動、地震間変形、余効変動、
+            火山性地殻変動、氷河性地殻均衡、地表荷重、質量再分配、地下水・積雪・氷床・海洋・大気荷重、
+            潮汐、地球回転、極運動、リソスフェア・マントル粘弾性、
+            地震・火山・断層活動・斜面災害との関連がAbstract内に明示されている論文。
+
+            一見すると水文学、雪氷学、海洋学、気象学、気候学に見える論文でも、
+            測地観測、重力観測、地表変形、荷重応答、質量再分配、地震・火山・斜面災害との接点が
+            Abstract内に明確に書かれていれば relevant とする。
+
+            irrelevant とするもの：
+            単なる気候変動、降水、洪水、植生、海洋循環、大気化学、温室効果ガス、オゾン、一般的な水文学で、
+            測地・重力・地殻変動・地震学・火山学・斜面災害との接点がAbstract内に見えないもの。
+            ただし、次のものは原則 irrelevant とする：
+            砂丘堆積物の供給源・輸送経路、風成地形、堆積学、地形学、古気候、氷河地形、
+            鉱物・磁気圏・太陽風、海洋循環、大気化学、生態・植生・環境モニタリングが主題で、
+            地震学・測地学・火山学・固体地球物理学との明確な接点がAbstract内に見えないもの。
+
+            上記の接点がAbstract内に明示されていない場合は irrelevant とする。
+            判断が難しい場合でも、対象分野との接点がAbstract内に明示されていなければ irrelevant とする。
+
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+    
+      - title: AGU Exploration Geophysics
+        rss_url: https://agupubs.onlinelibrary.wiley.com/action/showFeed?ui=0&mi=5e7lxtl&type=search&feed=rss&query=%2526ConceptID%253D103714%2526content%253DarticlesChapters%2526target%253Ddefault
+        link_tag: link
+        abstract_tag: content
+        slack_channel_id: C01234568
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+          - Obituary
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            AGU Exploration Geophysicsの論文のうち、地震学・固体地球物理学の利用者に有用なものを対象とする。
+            地震波探査、波動場解析、浅部構造、地下構造推定、断層・火山・地熱・地すべり・地震災害に関係する物理探査、
+            DASや高密度地震観測に関係するものを relevant とする。
+            純粋な資源探査、油ガス貯留層、鉱床探査、地下水探査、土木・環境調査のみで、
+            地震学・固体地球物理学との接点が薄いものは対象外。
+            判断が難しい場合は relevant ではなく irrelevant とする。
+        prefilter_uncertain: skip
+
+      - title: Nature Main
+        full_title: Nature
+        source_type: springer_api
+        springer_queries:
+          - >
+            (
+              (issn:0028-0836 OR issn:1476-4687) AND (
+                "earthquake" OR "earthquakes" OR "seismic" OR "seismology" OR "seismicity" OR
+                "ground motion" OR "strong motion" OR "seismic hazard" OR "site response" OR
+                "fault rupture" OR "fault slip" OR "slow slip" OR "tectonic tremor" OR "subduction" OR
+                "volcano" OR "volcanic" OR "eruption" OR "magma" OR "caldera" OR
+                "geodesy" OR "geodetic" OR "GNSS" OR "GPS" OR "InSAR" OR "crustal deformation" OR
+                "seismic tomography" OR "receiver function" OR "ambient noise tomography" OR
+                "mantle" OR "lithosphere" OR "plate tectonics" OR "geodynamics" OR
+                "distributed acoustic sensing" OR "DAS"
+              )
+            )
+        springer_page_size: 25
+        springer_max_pages: 2
+        slack_channel_id: C01234568
+        link_tag: link
+        abstract_tag: content
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 800
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Book review
+          - Obituary
+          - Correction
+          - Author Correction
+          - Publisher Correction
+          - Retraction Note
+          - Addendum
+          - Daily briefing
+          - Career Guide
+          - Research Highlight
+          - News & Views
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Nature本誌のうち、固体地球科学・地震学・測地学・火山学・テクトニクス・地球内部物理の研究者に有用な研究論文を対象とする。
+            relevant: 地震、断層、震源過程、地震波、強震動、地震活動、地震ハザード、津波、スロー地震、沈み込み帯、火山、マグマ、噴火、火山性地震、火山体構造、地殻変動、測地、GNSS、InSAR、重力、地震波トモグラフィ、receiver function、ambient noise tomography、地殻・リソスフェア・マントル構造、プレートテクトニクス、地球内部ダイナミクス、DASに関するもの。
+            irrelevant: 医学、生物学、材料科学、化学、天文学・宇宙物理、純粋な気候・大気・海洋・生態、AI一般、政策、ニュース、解説、Daily briefing、Letter to the Editor、Correction類など、固体地球物理学への直接的な貢献がAbstract内に明示されないもの。
+            Nature本誌はNews/Briefing/News & Views等もAPI上はArticleとして返るため、論文そのものではない記事、またはAbstractが短く研究内容を判断できない記事はirrelevantとする。
+            判断が難しい場合はrelevantではなくuncertainとする。
+        prefilter_uncertain: skip
+
+      - title: Springer Core Seismology Journals
+        full_title: PAGEOPH, JoS, EPS, PEPS
+        source_type: springer_api
+        springer_queries:
+          - >
+            (issn:0033-4553 OR issn:1383-4649 OR issn:1880-5981 OR issn:2197-4284)
+        springer_page_size: 25
+        springer_max_pages: 1
+        slack_channel_id: C01234568
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Book review
+          - Obituary
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            PAGEOPH, Journal of Seismology, Earth, Planets and Space の論文のうち、
+            地震学・測地学・火山学・固体地球物理学の研究者に有用なものを対象とする。
+            地震、断層、震源過程、地震波、強震動、地震活動、地震ハザード、津波、
+            火山性地震、火山体構造、地殻変動、測地、重力、地震波トモグラフィ、
+            地殻・リソスフェア・マントル構造、沈み込み帯、テクトニクスを relevant とする。
+            純粋な大気、海洋、宇宙、惑星、地球化学、教育記事、追悼、書評、
+            または固体地球物理学との接点が薄い論文は対象外。
+            一見すると水文、雪氷、海洋、気象、気候、宇宙天気、リモートセンシング、都市災害に見える論文でも、
+            地表荷重、質量再分配、地殻変動、GNSS/InSAR/重力観測、津波、地すべり、火山、
+            地震活動、または固体地球物理学的観測との接点がAbstract内に明示されている場合は relevant とする。
+            判断が難しい場合は relevant ではなく uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Springer Nature Portfolio Solid Earth Search
+        full_title: Springer Nature Portfolio Solid Earth Search
+        source_type: springer_api
+        springer_queries:
+          - >
+            (
+              (issn:2041-1723 AND (
+                "earthquake" OR "earthquakes" OR
+                "seismic" OR "seismology" OR "seismicity" OR
+                "ground motion" OR "strong motion" OR "seismic hazard" OR "site response" OR
+                "fault rupture" OR "slow slip" OR "tectonic tremor" OR "subduction" OR
+                "volcano" OR "volcanic" OR "eruption" OR "magma" OR "caldera" OR
+                "geodesy" OR "geodetic" OR "GNSS" OR "GPS" OR "InSAR" OR "crustal deformation" OR
+                "seismic tomography" OR "receiver function" OR "ambient noise tomography" OR
+                "distributed acoustic sensing"
+              ))
+              OR
+              (issn:2045-2322 AND (
+                "earthquake" OR "earthquakes" OR
+                "seismic" OR "seismology" OR "seismicity" OR
+                "ground motion" OR "strong motion" OR "seismic hazard" OR "site response" OR
+                "fault rupture" OR "slow slip" OR "tectonic tremor" OR "subduction" OR
+                "volcano" OR "volcanic" OR "eruption" OR "magma" OR "caldera" OR
+                "geodesy" OR "geodetic" OR "GNSS" OR "GPS" OR "InSAR" OR "crustal deformation" OR
+                "seismic tomography" OR "receiver function" OR "ambient noise tomography" OR
+                "distributed acoustic sensing"
+              ))
+              OR
+              (issn:1752-0894 AND (
+                "earthquake" OR "earthquakes" OR
+                "seismic" OR "seismology" OR "seismicity" OR
+                "ground motion" OR "strong motion" OR "seismic hazard" OR "site response" OR
+                "fault rupture" OR "slow slip" OR "tectonic tremor" OR "subduction" OR
+                "volcano" OR "volcanic" OR "eruption" OR "magma" OR "caldera" OR
+                "geodesy" OR "geodetic" OR "GNSS" OR "GPS" OR "InSAR" OR "crustal deformation" OR
+                "seismic tomography" OR "receiver function" OR "ambient noise tomography" OR
+                "distributed acoustic sensing"
+              ))
+              OR
+              (issn:2662-4435 AND (
+                "earthquake" OR "earthquakes" OR
+                "seismic" OR "seismology" OR "seismicity" OR
+                "ground motion" OR "strong motion" OR "seismic hazard" OR "site response" OR
+                "fault rupture" OR "slow slip" OR "tectonic tremor" OR "subduction" OR
+                "volcano" OR "volcanic" OR "eruption" OR "magma" OR "caldera" OR
+                "geodesy" OR "geodetic" OR "GNSS" OR "GPS" OR "InSAR" OR "crustal deformation" OR
+                "seismic tomography" OR "receiver function" OR "ambient noise tomography" OR
+                "distributed acoustic sensing"
+              ))
+            )
+        springer_page_size: 25
+        springer_max_pages: 2
+        slack_channel_id: C01234568
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Book review
+          - Obituary
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Nature Communications, Scientific Reports, Nature Geoscience,
+            Communications Earth & Environment の論文のうち、
+            固体地球科学・地震学・測地学・火山学・テクトニクスの研究者に有用なものを対象とする。
+            地震、断層、震源過程、地震波、強震動、地震活動、地震ハザード、津波、
+            火山性地震、火山体構造、地殻変動、測地、GNSS, InSAR, 重力、
+            地震波トモグラフィ、地殻・リソスフェア・マントル構造、
+            沈み込み帯、テクトニクス、DASを relevant とする。
+            純粋な気象、気候、水文、海洋、生態、材料、医学、化学、
+            または固体地球物理学との接点が薄い論文は対象外。
+            一見するとリモートセンシング、都市災害、地形学、堆積学、古気候、惑星科学に見える論文でも、
+            地表荷重、質量再分配、地殻変動、GNSS/InSAR/重力観測、津波、地すべり、火山、
+            地震活動、または固体地球物理学的観測との接点がAbstract内に明示されている場合は relevant とする。
+            判断が難しい場合は relevant ではなく uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Springer Journals 1
+        full_title: Springer Journals 1
+        source_type: springer_api
+        springer_queries:
+          - >
+            (
+              (issn:1895-7455 AND (
+                "earthquake" OR "earthquakes" OR "seismic" OR "seismology" OR "seismicity" OR
+                "ground motion" OR "strong motion" OR "seismic hazard" OR "site response" OR
+                "fault" OR "rupture" OR "slow slip" OR "tectonic tremor" OR "subduction" OR
+                "volcano" OR "volcanic" OR "eruption" OR "magma" OR "caldera" OR
+                "geodesy" OR "geodetic" OR "GNSS" OR "GPS" OR "InSAR" OR
+                "crustal deformation" OR "gravity" OR "gravimetry" OR
+                "seismic tomography" OR "receiver function" OR "ambient noise tomography" OR
+                "attenuation" OR "anisotropy" OR "scattering" OR
+                "distributed acoustic sensing" OR "DAS"
+              ))
+              OR
+              (issn:1993-0658 AND (
+                "earthquake" OR "seismic" OR "seismology" OR "microseismic" OR
+                "seismic imaging" OR "seismic inversion" OR "full waveform inversion" OR
+                "tomography" OR "receiver function" OR "ambient noise" OR
+                "ground motion" OR "site response" OR
+                "distributed acoustic sensing" OR "DAS"
+              ))
+              OR
+              (issn:1573-0956 AND (
+                "earthquake" OR "seismic" OR "seismology" OR "geodesy" OR "GNSS" OR
+                "InSAR" OR "gravity" OR "volcano" OR "volcanic" OR
+                "crustal deformation" OR "tectonics" OR "subduction" OR
+                "seismic tomography" OR "distributed acoustic sensing"
+              ))
+              OR
+              (issn:1573-0581 AND (
+                "seismic" OR "seismology" OR "subduction" OR "mid-ocean ridge" OR
+                "oceanic lithosphere" OR "marine geophysics" OR "seismic imaging" OR
+                "electromagnetic" OR "magnetotelluric" OR "crustal structure"
+              ))
+              OR
+              (issn:1432-1394 AND (
+                "earthquake" OR "coseismic" OR "postseismic" OR "interseismic" OR
+                "GNSS" OR "GPS" OR "InSAR" OR "crustal deformation" OR
+                "geoid" OR "gravity" OR "gravimetry" OR "loading" OR
+                "surface displacement"
+              ))
+              OR
+              (issn:1573-1626 AND (
+                "earthquake" OR "seismic" OR "seismology" OR "geodesy" OR "GNSS" OR
+                "InSAR" OR "gravity" OR "tectonics" OR "volcanic" OR
+                "crustal deformation"
+              ))
+              OR
+              (issn:2213-5820 AND (
+                "earthquake" OR "seismic" OR "seismology" OR "geodynamics" OR
+                "geodesy" OR "gravimetry" OR "tectonics" OR "solid Earth" OR
+                "volcanic" OR "crustal deformation"
+              ))
+            )
+        springer_page_size: 25
+        springer_max_pages: 1
+        link_tag: link
+        abstract_tag: content
+        slack_channel_id: C01234567
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Book review
+          - Obituary
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Springerの周辺固体地球・火山・自然災害・地盤系journal群のうち、
+            地震学・測地学・火山学・固体地球物理学の研究者に有用なものを対象とする。
+            Bulletin of Volcanology, Natural Hazards, Landslides,
+            Bulletin of Engineering Geology and the Environment,
+            Environmental Earth Sciences, Acta Geotechnica,
+            Rock Mechanics and Rock Engineering などの論文を想定する。
+
+            relevant:
+            火山性地震・火山性微動・火山体構造・噴火前兆・火山性地殻変動、
+            地震・断層・震源過程・地震波・地震動・地震ハザード、
+            地すべり・斜面災害のうち地震、火山、InSAR/GNSS、地球物理観測、
+            または地震波・地殻変動解析と明確に関係するもの。
+            岩盤・地盤・地質工学系でも、地震動、断層、動的破壊、液状化、
+            地震時斜面災害、地殻変動観測に関係するものは relevant とする。
+
+            irrelevant:
+            一般的な土木設計、材料、施工、補強、トンネル・橋梁・建築構造物、
+            水文、気象、気候、環境汚染、資源工学、農業、医学、生態、
+            あるいは地震学・測地学・火山学との接点がAbstract内に見えないもの。
+            判断が難しい場合は relevant ではなく uncertain とする。
+        prefilter_uncertain: skip
+
+
+      - title: Springer Journals 2
+        full_title: Springer Journals 2
+        source_type: springer_api
+        springer_queries:
+          - >
+            (
+              (issn:1432-0819 AND (
+                "volcano" OR "volcanic" OR "eruption" OR "magma" OR "caldera" OR
+                "volcanic earthquake" OR "volcanic tremor" OR "seismic" OR
+                "ground deformation" OR "InSAR" OR "GNSS"
+              ))
+              OR
+              (issn:1819-7108 AND (
+                "volcano" OR "volcanic" OR "eruption" OR "magma" OR
+                "seismic" OR "seismology" OR "earthquake" OR "geodynamic" OR
+                "geothermal" OR "seismological monitoring"
+              ))
+              OR
+              (issn:0973-774X AND (
+                "earthquake" OR "seismicity" OR "seismic hazard" OR "ground motion" OR
+                "seismotectonics" OR "active fault" OR "coseismic" OR "postseismic" OR
+                "GNSS" OR "InSAR" OR "crustal deformation" OR
+                "volcanic earthquake" OR "volcanic tremor" OR "seismic tomography"
+              ))
+              OR
+              (issn:1869-1897 AND (
+                "earthquake" OR "seismicity" OR "seismic hazard" OR "ground motion" OR
+                "seismotectonics" OR "active fault" OR "fault rupture" OR
+                "coseismic" OR "postseismic" OR "interseismic" OR
+                "GNSS" OR "InSAR" OR "crustal deformation" OR
+                "subduction" OR "seismic tomography" OR "volcanic"
+              ))
+              OR
+              (issn:2196-4092 AND (
+                "earthquake" OR "seismicity" OR "seismic hazard" OR "ground motion" OR
+                "fault rupture" OR "slow slip" OR "tectonic tremor" OR "subduction" OR
+                "volcano" OR "volcanic" OR "eruption" OR
+                "GNSS" OR "InSAR" OR "crustal deformation" OR
+                "seismic tomography" OR "distributed acoustic sensing"
+              ))
+              OR
+              (issn:1598-7477 AND (
+                "earthquake" OR "seismicity" OR "seismic hazard" OR "ground motion" OR
+                "seismotectonics" OR "active fault" OR "coseismic" OR "postseismic" OR
+                "GNSS" OR "InSAR" OR "crustal deformation" OR
+                "volcanic" OR "seismic tomography"
+              ))
+              OR
+              (issn:1573-1499 AND (
+                "seismic inversion" OR "full waveform inversion" OR "waveform inversion" OR
+                "seismic imaging" OR "seismic tomography" OR "ambient noise tomography" OR
+                "geophysical inversion" OR "distributed acoustic sensing" OR
+                "earthquake simulation" OR "fault rupture simulation" OR
+                "seismic wave propagation"
+              ))
+            )
+        springer_page_size: 25
+        springer_max_pages: 1
+        link_tag: link
+        abstract_tag: content
+        slack_channel_id: C01234567
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Book review
+          - Obituary
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            地震学・測地学・火山学・固体地球物理学の研究者に有用な論文か判定する。
+
+            relevant:
+            地震、断層、震源過程、地震波、強震動、地震活動、地震ハザード、津波、
+            火山性地震、火山性微動、火山体構造、噴火前兆、マグマ移動、火山性地殻変動、
+            GNSS/InSAR/重力などによる地殻変動・質量再分配、地震波トモグラフィ、
+            DAS、地球物理インバージョン、地震波伝播、断層破壊シミュレーションに関係するもの。
+
+            irrelevant:
+            一般的な気象、気候、水文、堆積、地球化学、古生物、生態、資源、材料、土木設計、
+            または地震学・測地学・火山学・固体地球物理学との接点がAbstract内に明示されていないもの。
+            判断が難しい場合は relevant ではなく uncertain とする。
+        prefilter_uncertain: skip
+
+
+      - title: EPSL
+        rss_url: https://rss.sciencedirect.com/publication/science/0012821X
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234568
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial Board
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            地震学、火山学、測地学、テクトニクス、断層、沈み込み帯、
+            地殻・リソスフェア・マントル、地球内部構造、地震波、
+            重力、地殻変動、固体地球のレオロジーに関係する論文。
+            EPSL内の広い地球惑星科学のうち、固体地球科学・地球物理学寄りのものを対象とする。
+            純粋な古気候、海洋化学、堆積地球化学、宇宙化学、隕石、
+            生命圏、大気、の論文は対象外。
+            判断が難しい場合は relevant ではなく uncertain とする。
+
+      - title: Tectonophysics
+        full_title: Tectonophysics
+        issn: 0040-1951
+        rss_url: https://rss.sciencedirect.com/publication/science/00401951
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234568
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial Board
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            地震学、テクトニクス、断層、沈み込み帯、地殻・リソスフェア・マントル構造、
+            地震波、地殻変動、測地、重力、固体地球の変形・レオロジーに関係する論文。
+            Tectonophysics内の広い構造地質・テクトニクス論文のうち、地震学利用者に関係するものを対象とする。
+            純粋な年代学、古地磁気、岩石学、広域地質史のみの論文は対象外。
+            判断が難しい場合は relevant ではなく uncertain とする。
+
+      - title: PEPI
+        full_title: Physics of the Earth and Planetary Interiors
+        issn: 0031-9201
+        rss_url: https://rss.sciencedirect.com/publication/science/00319201
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234568
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial Board
+          - Corrigendum
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            PEPI内の論文のうち、地震学者に有用な地球内部物理・固体地球物理の論文を対象とする。
+            地震波、地震波トモグラフィ、異方性、減衰、散乱、ノーマルモード、
+            レシーバ関数、地球内部構造、地殻・リソスフェア・マントル・コア、
+            内核・外核、重力、測地、固体地球レオロジーに関係する論文は relevant とする。
+            純粋な惑星内部、鉱物物理実験、地磁気・ダイナモ、熱史モデルのみで
+            地震学・地球内部構造との接点が薄いものは対象外。
+            判断が難しい場合は relevant ではなく uncertain とする。
+
+      - title: Earthquake Research Advances
+        full_title: Earthquake Research Advances
+        issn: 2772-4670
+        rss_url: https://rss.sciencedirect.com/publication/science/27724670
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Earthquake Research Advances内の論文のうち、地震学・測地学・固体地球物理学の
+            利用者に有用なものを対象とする。
+
+            relevant とするもの：
+            地震活動、震源過程、震源決定、地震波、地震波形解析、地震波トモグラフィ、
+            地下構造、地震カタログ、断層、活断層、地震時すべり、余震、誘発地震、
+            スロー地震、微動、強震動、地震動予測、サイト応答、地殻変動、GNSS、InSAR、
+            津波、地震誘発地すべりのうち地震学・固体地球科学と関係するもの。
+
+            irrelevant とするもの：
+            建物、橋梁、トンネル、地下構造物、基礎、免震・制振、補強材、施工法、
+            地盤改良、液状化対策工法、構造性能評価、振動台実験、避難計画、防災行政、
+            リスク認知、都市防災、保険・経済被害評価が主題で、
+            地震学・測地学・固体地球物理学との明確な接点がAbstract内に見えないもの。
+
+            判断が難しい場合でも、構造工学・土木工学・防災計画が主題であれば irrelevant とする。
+
+
+      - title: Computers & Geosciences
+        full_title: Computers & Geosciences
+        issn: 0098-3004
+        eissn: 1873-7803
+        rss_url: https://rss.sciencedirect.com/publication/science/00983004
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Computers & Geosciences内の論文のうち、地震学・測地学・火山学・テクトニクス・
+            固体地球物理学の利用者に有用な計算手法・データ解析・ソフトウェア・情報科学研究を対象とする。
+            地震波解析、地震波形処理、震源解析、地震活動解析、地震波トモグラフィ、地下構造推定、
+            ambient noise、DAS、光ファイバ計測、GNSS、InSAR、SAR、重力、地表変位、火山観測、
+            断層・地殻変動・地すべり・斜面災害・地球物理探査に関係する計算手法は relevant とする。
+            一般的な地球科学向けの機械学習、リモートセンシング、可視化、データベース、GIS、数値計算でも、
+            固体地球科学・地球物理観測への応用がAbstract内に明確なら relevant とする。
+            純粋な水文、気候、海洋、生態、資源、土壌、惑星、教育、GIS一般、ソフトウェア工学のみで、
+            地震学・測地学・火山学・固体地球物理学との接点がAbstract内に見えないものは irrelevant とする。
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Earth-Science Reviews
+        full_title: Earth-Science Reviews
+        issn: 0012-8252
+        rss_url: https://rss.sciencedirect.com/publication/science/00128252
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Earth-Science Reviews内の広いレビュー論文のうち、地震学・測地学・火山学・
+            テクトニクス・固体地球物理学の研究者に有用なものを対象とする。
+            地震、断層、震源過程、地震活動、スロー地震、地震波、地震波トモグラフィ、
+            地殻・リソスフェア・マントル・核構造、沈み込み帯、プレート境界、造山帯、
+            地殻変動、測地、GNSS、InSAR、重力、地球内部ダイナミクス、火山、マグマ供給系、
+            火山性地震、津波、地すべり・斜面災害のうち固体地球科学と関係するレビューは relevant とする。
+            一見すると気候、水文、海洋、雪氷、地形、堆積、地球化学、惑星科学に見えるレビューでも、
+            固体地球変形、地表荷重、質量再分配、地震・火山・断層活動、地球物理観測との接点が
+            Abstract内に明確なら relevant とする。
+            古生物、層序、堆積、地球化学、気候、水文、海洋、生態、資源、惑星科学のみが主題で、
+            地震学・測地学・火山学・固体地球物理学との接点がAbstract内に見えないものは irrelevant とする。
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Journal of Structural Geology
+        full_title: Journal of Structural Geology
+        issn: 0191-8141
+        eissn: 1873-1201
+        rss_url: https://rss.sciencedirect.com/publication/science/01918141
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Journal of Structural Geology内の論文のうち、地震学・テクトニクス・断層力学・
+            固体地球物理学の利用者に有用なものを対象とする。
+            活断層、断層帯、破砕帯、せん断帯、断層岩、摩擦、破壊、応力、ひずみ、流体圧、
+            浸透率、脆性-延性遷移、沈み込み帯、メガスラスト、スロー地震、地震発生場、
+            地震時・地震間変形、地殻・リソスフェア変形、地震反射・測地・地球物理観測を用いた
+            構造解析は relevant とする。
+            野外地質、岩石組織、変成作用、鉱物反応、地質図、古応力解析が主題でも、
+            断層活動、地震発生、地殻変動、プレート境界、地震学的・測地学的解釈に
+            明確につながる場合は relevant とする。
+            純粋な岩石記載、層序、堆積、変成岩岩石学、鉱床、古地理、地域地質のみで、
+            地震学・テクトニクス・断層力学・固体地球物理学との接点がAbstract内に見えないものは irrelevant とする。
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Journal of Geodynamics
+        full_title: Journal of Geodynamics
+        issn: 0264-3707
+        rss_url: https://rss.sciencedirect.com/publication/science/02643707
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Journal of Geodynamics内の論文のうち、地震学・測地学・テクトニクス・
+            地球内部構造・固体地球物理学の利用者に有用なものを対象とする。
+            地震、断層、震源過程、地震活動、スロー地震、地震波、地震波トモグラフィ、
+            異方性、レシーバ関数、せん断波分裂、地殻・リソスフェア・マントル・核構造、
+            沈み込み帯、プレート運動、地殻変動、測地、重力、火山、マグマ、地球内部ダイナミクス、
+            断層力学、流体圧、誘発地震、リソスフェア変形に関する論文は relevant とする。
+            数値シミュレーション、室内実験、地質・地球化学的研究でも、
+            地震発生場、テクトニクス、地殻変動、地球内部構造、固体地球ダイナミクスに
+            明確につながる場合は relevant とする。
+            惑星内部、地磁気・ダイナモ、純粋な地球化学、岩石学、熱史モデルのみが主題で、
+            地震学・測地学・テクトニクス・固体地球物理学との接点がAbstract内に見えないものは irrelevant とする。
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Journal of Asian Earth Sciences
+        full_title: Journal of Asian Earth Sciences
+        issn: 1367-9120
+        rss_url: https://rss.sciencedirect.com/publication/science/13679120
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Journal of Asian Earth Sciences内の論文のうち、アジアおよび周辺海域の
+            地震学・テクトニクス・地殻構造・固体地球物理学の利用者に有用なものを対象とする。
+            地震活動、震源過程、活断層、古地震、ネオテクトニクス、沈み込み帯、衝突帯、造山帯、
+            地殻・リソスフェア・マントル構造、地震波トモグラフィ、異方性、レシーバ関数、
+            地殻変動、GNSS、InSAR、火山性地震、火山体構造、津波、地すべり・斜面災害のうち
+            地震学・固体地球科学と関係するものは relevant とする。
+            地質、岩石学、地球化学、年代学、層序、堆積、鉱床、古生物が主題でも、
+            断層活動、地震発生場、沈み込み・衝突テクトニクス、地殻・マントル構造、
+            地球物理観測との接点がAbstract内に明確なら relevant とする。
+            純粋な地域地質、層序、堆積、岩石記載、鉱床、地球化学、古生物、古環境のみが主題で、
+            地震学・テクトニクス・固体地球物理学との接点がAbstract内に見えないものは irrelevant とする。
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Geodesy and Geodynamics
+        full_title: Geodesy and Geodynamics
+        issn: 1674-9847
+        eissn: 2589-0573
+        rss_url: https://rss.sciencedirect.com/publication/science/16749847
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Geodesy and Geodynamics内の論文のうち、地震学・測地学・地球力学・
+            固体地球物理学者に有用なものを対象とする。
+
+            relevant とするもの：
+            GNSS、InSAR、SLR、VLBI、GRACE/GRACE-FO、衛星重力、ジオイド、
+            地表変位、地殻変動、プレート運動、地震時変動、地震間変形、余効変動、
+            断層すべり、活断層、地震活動、震源過程、地殻・リソスフェア・マントル変形、
+            重力変化、火山性地殻変動、地表荷重、質量再分配、荷重応答に関する論文。
+            GNSS/PPP/PPP-RTK/電離圏補正については、測地測位精度、地殻変動観測、地震・火山・変形観測への
+            明確な応用がある場合のみ relevant とする。
+
+            irrelevant とするもの：
+            測位工学、航法、電離圏モデル、衛星軌道決定、リモートセンシング一般、地理情報処理、
+            一般的な災害リスク評価、防災行政、気候、水文、海洋、植生、地形、都市解析が主題で、
+            地震学・測地学・地球力学・固体地球物理学との明確な接点がAbstract内に見えないもの。
+
+            判断が難しい場合でも、地殻変動・重力・地震・火山・断層・荷重応答との接点が
+            Abstract内に明示されていなければ irrelevant とする。
+        prefilter_uncertain: skip
+
+      - title: Earthquake Science
+        full_title: Earthquake Science
+        issn: 1674-4519
+        eissn: 1867-8777
+        rss_url: https://rss.sciencedirect.com/publication/science/16744519
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Earthquake Science内の論文のうち、地震学・測地学・地球物理学の利用者に有用なものを対象とする。
+            地震活動、震源過程、地震波、地震波形解析、地震波トモグラフィ、レシーバ関数、
+            ambient noise、地殻・リソスフェア・マントル構造、活断層、断層すべり、誘発地震、
+            地震時・地震間・余効変動、GNSS、InSAR、地震動、サイト応答、地震ハザード、
+            火山性地震、津波、スロー地震、地すべり・斜面災害のうち地震学・固体地球科学と関係するものは relevant とする。
+            地震工学、建物・橋梁・トンネル・地下構造物の耐震設計、補強、施工、構造性能評価が主題で、
+            地震学・測地学・地球物理学的知見が主題でないものは irrelevant とする。
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Journal of Applied Geophysics
+        full_title: Journal of Applied Geophysics
+        issn: 0926-9851
+        eissn: 1879-1859
+        rss_url: https://rss.sciencedirect.com/publication/science/09269851
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Journal of Applied Geophysics内の論文のうち、地震学・測地学・火山学・
+            固体地球物理学の利用者に有用な地球物理観測・解析・手法開発を対象とする。
+
+            relevant とするもの：
+            地震波探査、地震波形解析、波動場解析、表面波解析、微動観測、ambient noise、
+            DAS、光ファイバ計測、地震波トモグラフィ、地下構造推定、減衰・散乱・異方性、
+            断層、火山、地熱、地震災害、地盤応答、地震動、重力・測地・InSAR/GNSSと
+            結びついた固体地球物理研究。
+
+            irrelevant とするもの：
+            資源探査、油ガス貯留層、鉱床探査、地下水探査、環境調査、汚染調査、
+            文化財・考古探査、土木調査、トンネル・道路・堤防・地盤改良・地盤工学のみが主題で、
+            地震学・測地学・火山学・固体地球物理学との明確な接点がAbstract内に見えないもの。
+            GPR、電気探査、比抵抗、MT、重磁力探査であっても、資源・環境・考古・土木用途のみの場合は irrelevant とする。
+
+            判断が難しい場合でも、地震・火山・断層・地殻変動・地下構造・地球物理観測としての接点が
+            Abstract内に明示されていなければ irrelevant とする。
+        prefilter_uncertain: skip
+
+      - title: International Journal of Applied Earth Observation and Geoinformation
+        full_title: International Journal of Applied Earth Observation and Geoinformation
+        issn: 1569-8432
+        eissn: 1872-826X
+        rss_url: https://rss.sciencedirect.com/publication/science/15698432
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            International Journal of Applied Earth Observation and Geoinformation内の論文のうち、
+            地震学・測地学・火山学・固体地球物理学の利用者に明確に有用なリモートセンシング・
+            地表変形・測地観測研究のみを対象とする。
+
+            relevant とするもの：
+            InSAR、GNSS/GPS、測地、重力、地表変位、地殻変動、断層すべり、
+            地震時・地震間・余効変動、火山性地殻変動、地盤沈下、隆起、
+            地表荷重、質量再分配、荷重応答、地下水・積雪・氷床・海洋・大気荷重と
+            地表変形・重力変化の関係に関する論文。
+            地すべり・斜面崩壊については、地震誘発、火山性、InSAR/GNSSによる変形観測、
+            地震波観測、地殻変動との接点がAbstract内に明確なもののみ relevant とする。
+
+            irrelevant とするもの：
+            衛星動画の物体追跡、土地被覆分類、農業、森林、植生、生態、都市、海洋色、
+            クロロフィル、グリーンタイド、山火事リスク、建物被害推定、UAV-SLAM、
+            オルソ画像作成、画像分類、物体検出、SAR despeckling、GPR考古探査、
+            リモートセンシング手法一般が主題で、地震学・測地学・火山学・固体地球物理学との
+            明確な接点がAbstract内に見えないもの。
+            landslide detectionであっても、単なる光学画像・SAR画像の検出AIやデータセット構築が主題で、
+            地震・火山・測地変形・地震波観測との接点がAbstract内にない場合は irrelevant とする。
+
+            このfeedでは、単にSAR、DEM、LiDAR、remote sensing、satellite、GISという語があるだけでは relevant にしない。
+            判断が難しい場合でも、固体地球物理学的な接点がAbstract内に明示されていなければ irrelevant とする。
+        prefilter_uncertain: skip
+
+      - title: JVGR
+        full_title: Journal of Volcanology and Geothermal Research
+        rss_url: https://rss.sciencedirect.com/publication/science/03770273
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial Board
+          - Editorial
+          - Erratum
+          - Corrigendum
+          - Correction
+          - Comment on
+          - Reply to the comment
+          - Reply to comment
+          - Book review
+          - Obituary
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Journal of Volcanology and Geothermal Research の論文のうち、
+            地震学・火山物理学・測地学・固体地球物理学の利用者に有用なものを対象とする。
+
+            relevant とするもの：
+            火山性地震、火山性微動、火山性低周波地震、噴火前兆、火山体構造、
+            火山性地殻変動、GNSS、InSAR、SAR、重力、比抵抗、磁気、地熱地域の地球物理観測、
+            マグマ移動、熱水系、カルデラ、火山周辺の地震活動、DAS・高密度地震観測、
+            火山・地熱地域における地下構造推定・トモグラフィ・ambient noise 解析。
+
+            irrelevant とするもの：
+            岩石学、鉱物学、純粋な地球化学、噴出物記載、火山灰層序、年代測定、
+            古環境、資源評価、観光・社会影響、噴火史のみが主題で、
+            地震・測地・地球物理観測・地下構造推定との明確な接点がAbstract内に見えないもの。
+
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+
+      - title: Big Data and Earth System
+        full_title: Big Data and Earth System
+        issn: 3050-7405
+        rss_url: https://rss.sciencedirect.com/publication/science/30507405
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Editorial Board
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Big Data and Earth System内の論文のうち、地震学・測地学・火山学・テクトニクス・
+            固体地球物理学の研究者に有用な、データ解析・機械学習・数値計算・観測手法の論文を対象とする。
+
+            relevant とするもの：
+            地震波解析、地震波形処理、震源解析、地震活動解析、地震波トモグラフィ、地下構造推定、
+            ambient noise、DAS、光ファイバ計測、GNSS、InSAR、SAR、重力、地表変位、火山観測、
+            断層・地殻変動・地すべり・斜面災害・地球物理探査に関係するビッグデータ解析、AI、
+            機械学習、データ同化、可視化、データベース、計算手法、ソフトウェア。
+
+            irrelevant とするもの：
+            気候、海洋、大気、水文、雪氷、生態、農業、都市、社会、リモートセンシング一般、GIS一般、
+            AI手法一般、データ基盤一般が主題で、地震学・測地学・火山学・テクトニクス・
+            固体地球物理学との明確な接点がAbstract内に見えないもの。
+
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Gondwana Research
+        full_title: Gondwana Research
+        issn: 1342-937X
+        eissn: 1878-0571
+        rss_url: https://rss.sciencedirect.com/publication/science/1342937X
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Editorial Board
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Gondwana Research内の広い固体地球科学・大陸進化・テクトニクス論文のうち、
+            地震学・測地学・火山学・テクトニクス・固体地球物理学の研究者に有用なものを対象とする。
+
+            relevant とするもの：
+            地震、断層、活断層、震源過程、地震活動、沈み込み帯、衝突帯、造山帯、リフト、
+            プレート境界、ネオテクトニクス、地殻・リソスフェア・マントル構造、地震波トモグラフィ、
+            異方性、レシーバ関数、重力、磁気、測地、GNSS、InSAR、地殻変動、火山、
+            マグマ供給系、地球内部ダイナミクス、リソスフェア変形に関係する論文。
+            地質・岩石学・地球化学・年代学が中心でも、断層活動、地震発生場、沈み込み・衝突テクトニクス、
+            地殻・マントル構造、地球物理観測との接点がAbstract内に明確なら relevant とする。
+
+            irrelevant とするもの：
+            純粋な岩石学、地球化学、年代学、層序、堆積、鉱床、古生物、古環境、気候、
+            水文、資源評価、地域地質記載のみが主題で、地震学・測地学・火山学・テクトニクス・
+            固体地球物理学との接点がAbstract内に見えないもの。
+
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Results in Earth Sciences
+        full_title: Results in Earth Sciences
+        eissn: 2211-7148
+        rss_url: https://rss.sciencedirect.com/publication/science/22117148
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Editorial Board
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Results in Earth Sciences内の広い地球科学論文のうち、地震学・測地学・火山学・
+            テクトニクス・固体地球物理学の研究者に有用なものを対象とする。
+
+            relevant とするもの：
+            地震、断層、活断層、震源過程、地震活動、地震ハザード、地震波、地震波トモグラフィ、
+            地下構造、DAS、ambient noise、地球物理探査、測地、GNSS、InSAR、SAR、重力、
+            地殻変動、地表変位、火山、マグマ、火山性地震、火山性微動、火山性地殻変動、
+            テクトニクス、沈み込み帯、衝突帯、造山帯、リソスフェア・マントル構造、
+            地球内部ダイナミクス、津波、地震・火山・斜面災害と関係する論文。
+
+            irrelevant とするもの：
+            気候、水文、海洋、大気、雪氷、生態、土壌、農業、地形、堆積、地球化学、
+            古生物、古環境、惑星科学、資源、GIS一般、リモートセンシング一般が主題で、
+            地震学・測地学・火山学・テクトニクス・固体地球物理学との明確な接点がAbstract内に見えないもの。
+
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Russian Geology and Geophysics
+        full_title: Russian Geology and Geophysics
+        issn: 1068-7971
+        rss_url: https://rss.sciencedirect.com/publication/science/10687971
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Editorial Board
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Russian Geology and Geophysics内の論文のうち、地震学・測地学・火山学・テクトニクス・
+            固体地球物理学の研究者に有用なものを対象とする。
+
+            relevant とするもの：
+            地震、断層、活断層、地震活動、震源過程、地震波、地震波トモグラフィ、地下構造、
+            地殻・リソスフェア・マントル構造、沈み込み帯、衝突帯、造山帯、リフト、
+            テクトニクス、地殻変動、測地、GNSS、InSAR、重力、火山、マグマ、火山性地震、
+            地球内部ダイナミクス、地球物理探査に関係する論文。
+            地質・岩石学・地球化学・年代学が中心でも、断層活動、地震発生場、火山活動、
+            地殻・マントル構造、地球物理観測との接点がAbstract内に明確なら relevant とする。
+
+            irrelevant とするもの：
+            純粋な地域地質、層序、堆積、古生物、鉱床、資源、岩石記載、地球化学、年代学のみが主題で、
+            地震学・測地学・火山学・テクトニクス・固体地球物理学との接点がAbstract内に見えないもの。
+
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Journal of South American Earth Sciences
+        full_title: Journal of South American Earth Sciences
+        issn: 0895-9811
+        eissn: 1873-0647
+        rss_url: https://rss.sciencedirect.com/publication/science/08959811
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: feed_last_build
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+          - Editorial Board
+          - Book review
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Journal of South American Earth Sciences内の論文のうち、南米・中米・カリブ・メキシコ・
+            南極半島周辺の地震学・測地学・火山学・テクトニクス・固体地球物理学の研究者に有用なものを対象とする。
+
+            relevant とするもの：
+            地震、断層、活断層、古地震、震源過程、地震活動、地震波、地震波トモグラフィ、
+            地殻・リソスフェア・マントル構造、沈み込み帯、アンデス造山帯、衝突帯、リフト、
+            ネオテクトニクス、プレート境界、地殻変動、測地、GNSS、InSAR、重力、火山、
+            マグマ、火山性地震、火山性地殻変動、津波、地すべり・斜面災害に関係する論文。
+            地質・岩石学・地球化学・年代学・層序が中心でも、断層活動、地震発生場、沈み込み帯、
+            火山活動、地殻・マントル構造、地球物理観測との接点がAbstract内に明確なら relevant とする。
+
+            irrelevant とするもの：
+            純粋な地域地質、層序、堆積、古生物、古環境、鉱床、資源、地球化学、年代学のみが主題で、
+            地震学・測地学・火山学・テクトニクス・固体地球物理学との接点がAbstract内に見えないもの。
+
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Solid Earth
+        full_title: Solid Earth
+        rss_url: https://se.copernicus.org/xml/rss2_0.xml
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234567
+        abstract_fallback: []
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        include_keywords:
+          - earthquake
+          - seismic
+          - seismology
+          - seismicity
+          - fault
+          - rupture
+          - slow slip
+          - tremor
+          - subduction
+          - tectonic
+          - geodynamic
+          - geodynamics
+          - deformation
+          - crust
+          - crustal
+          - lithosphere
+          - mantle
+          - tomography
+          - anisotropy
+          - attenuation
+          - scattering
+          - geodesy
+          - geodetic
+          - gnss
+          - gps
+          - insar
+          - volcano
+          - volcanic
+          - magma
+          - gravity
+        exclude_title_patterns:
+          - Editorial
+          - Erratum
+          - Corrigendum
+          - Correction
+          - Comment on
+          - Reply to the comment
+          - Reply to comment
+          - Book review
+          - Obituary
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Solid Earth の論文のうち、地震学・測地学・テクトニクス・火山学・固体地球物理学の利用者に有用なものを対象とする。
+
+            relevant とするもの：
+            地震、断層、震源過程、地震活動、地震波、トモグラフィ、異方性、減衰、散乱、
+            地殻・リソスフェア・マントル構造、沈み込み帯、プレート運動、テクトニクス、
+            地殻変動、GNSS、InSAR、重力、火山性地殻変動、地球内部ダイナミクス、
+            岩石変形・レオロジーのうち地震・断層・地殻変動・地球力学との接点が明確なもの。
+
+            irrelevant とするもの：
+            純粋な層序、堆積学、古環境、地形発達、地球化学、岩石記載、鉱物学のみの論文で、
+            地震学・測地学・火山学・固体地球物理学との明確な接点がAbstract内に見えないもの。
+
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip
+
+      - title: Frontiers in Earth Science
+        full_title: Frontiers in Earth Science
+        rss_url: https://www.frontiersin.org/journals/earth-science/rss
+        link_tag: link
+        abstract_tag: summary
+        date_strategy: entry
+        slack_channel_id: C01234567
+        metadata_fallback:
+          - html
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        exclude_title_patterns:
+          - Editorial
+        include_keywords:
+          - earthquake
+          - seismic
+          - seismology
+          - seismicity
+          - ground motion
+          - fault rupture
+          - slow slip
+          - subduction
+          - volcano
+          - volcanic
+          - eruption
+          - magma
+          - caldera
+          - GNSS
+          - InSAR
+          - crustal deformation
+          - receiver function
+          - ambient noise
+          - seismic tomography
+          - microtremor
+          - distributed acoustic sensing
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Frontiers in Earth Science のうち、Solid Earth Geophysics,
+            Structural Geology and Tectonics, Volcanology, Geohazards and Georisks
+            などに属する論文で、地震学・測地学・火山学・固体地球物理学の研究者に有用なものを対象とする。
+            地震、断層、震源過程、地震波、強震動、地震活動、地震ハザード、津波、
+            火山性地震、火山体構造、地殻変動、測地、GNSS, InSAR, 重力、
+            receiver function, ambient noise tomography, seismic tomography,
+            microtremor, DAS, distributed acoustic sensing, subduction dynamics,
+            lithosphere/mantle/crustal structure を relevant とする。
+            鉱山工学、資源探査、貯留層予測、岩石物理、石油・ガス、CO2貯留、地下工学、
+            土木工学、材料物性、純粋な水文・気候・堆積・地形・生態・社会科学は、
+            地震・火山・測地・固体地球物理への直接的な貢献が薄い限り irrelevant とする。
+            判断が難しい場合は uncertain とする。
+        prefilter_uncertain: skip

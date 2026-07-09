@@ -1,0 +1,108 @@
+# Paper Slack Bot — starter configuration
+#
+# Copy this file and customize it for your research field.
+# For a full production example (solid Earth geophysics), see:
+#   examples/config.solid-earth.yaml
+
+# How far back to fetch entries (hours). Shared by arXiv, EarthArXiv, and RSS.
+hours_back: 48
+
+# How long to keep posted-entry records before pruning (hours).
+keep_hours: 2000
+
+workspaces:
+  - name: default
+    # ── arXiv ──────────────────────────────────────────────
+    arxiv:
+      slack_channel_id: C01234567
+      categories:
+        - cs.AI          # example: replace with your arXiv categories
+      keywords:          # optional: filter by abstract keywords (case-insensitive)
+        - machine learning
+        - neural network
+
+    # ── EarthArXiv (optional) ──────────────────────────────
+    eartharxiv:
+      slack_channel_id: C01234567
+      keywords:
+        - climate
+        - geophysics
+
+    # ── Journal feeds ──────────────────────────────────────
+    journals:
+      # Example 1: standard RSS feed
+      - title: Example Journal
+        rss_url: https://example.com/rss/latest.xml
+        link_tag: link          # RSS field for the paper URL (link | id)
+        abstract_tag: summary     # RSS field for abstract (summary | description | content)
+        slack_channel_id: C01234567
+        exclude_title_patterns:   # skip editorials, corrections, etc.
+          - Editorial
+          - Erratum
+          - Book review
+
+      # Example 2: broad journal feed with keyword + LLM prefilter
+      - title: Broad Science Journal
+        full_title: Journal of Example Science
+        issn: "1234-5678"         # helps metadata lookup via Crossref / OpenAlex
+        rss_url: https://example.com/feed.rss
+        link_tag: link
+        abstract_tag: summary
+        slack_channel_id: C01234567
+        include_keywords:         # first-stage keyword filter (title + abstract)
+          - your-topic
+          - related-keyword
+        exclude_title_patterns:
+          - Editorial
+          - Perspective
+          - News
+        metadata_fallback:        # fetch abstract when RSS lacks it
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        prefilter:                # second-stage LLM relevance filter
+          method: llm
+          provider: github        # github | openai
+          target_scope: >
+            Papers relevant to [YOUR RESEARCH FIELD].
+            Describe what is relevant and what is not.
+            When uncertain, prefer "uncertain" over "irrelevant".
+        prefilter_uncertain: skip # skip | post — what to do with uncertain papers
+
+      # Example 3: Springer Nature Meta API (requires springer_api_key in secrets.yaml)
+      - title: Springer Journal Example
+        source_type: springer_api
+        springer_queries:
+          - '(issn:1234-5678 AND ("keyword-one" OR "keyword-two"))'
+        springer_page_size: 25
+        springer_max_pages: 2
+        slack_channel_id: C01234567
+        metadata_fallback:
+          - openalex
+          - crossref
+        min_abstract_length: 500
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Papers in [YOUR FIELD] that would interest researchers in [YOUR LAB/GROUP].
+
+      # Example 4: Copernicus recent-preprint listing (HTML scrape)
+      - title: Copernicus Preprint Example
+        source_type: copernicus_recent
+        rss_url: https://egusphere.copernicus.org/
+        copernicus_recent_url: https://egusphere.copernicus.org/
+        copernicus_recent_max_entries: 100
+        abstract_tag: summary
+        slack_channel_id: C01234567
+        include_keywords:
+          - seismology
+          - geodesy
+        metadata_fallback:
+          - openalex
+          - crossref
+        prefilter:
+          method: llm
+          provider: github
+          target_scope: >
+            Preprints relevant to [YOUR RESEARCH FIELD].
