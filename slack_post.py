@@ -71,7 +71,7 @@ def post(
     link: str,
     summary: str,
     abstract: str,
-) -> None:
+) -> bool:
     try:
         clean_abs = clean_abstract(abstract)
         include_abstract = bool(clean_abs) and not is_bibliographic_metadata(clean_abs)
@@ -80,6 +80,9 @@ def post(
         summary = truncate_for_slack_block(summary, SLACK_SECTION_TEXT_LIMIT)
         if OVERRIDE_SLACK_CHANNEL_ID:
             channel = OVERRIDE_SLACK_CHANNEL_ID
+        if not channel:
+            logging.error("Slack channel ID is missing")
+            return False
 
         if DRY_RUN:
             print("[DRY_RUN] would_post_to_slack")
@@ -89,7 +92,7 @@ def post(
             print(f"[DRY_RUN] summary={summary[:500]}")
             print(f"[DRY_RUN] abstract_length={len(clean_abs)}")
             print(f"[DRY_RUN] include_abstract={include_abstract}")
-            return
+            return True
 
         blocks = [
             {
@@ -132,6 +135,11 @@ def post(
             text=f"{display_title}\n{summary}",
             blocks=blocks,
         )
+        return True
 
     except SlackApiError as e:
         logging.error("Slack posting failed: %s", e)
+        return False
+    except Exception as e:
+        logging.error("Slack request failed: %s", e)
+        return False

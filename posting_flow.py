@@ -5,6 +5,7 @@ import datetime as dt
 
 from slack_sdk import WebClient
 
+from bot_config import DRY_RUN
 from posted import PostedRecord, mark_with_aliases_and_save
 from slack_post import post
 
@@ -45,8 +46,8 @@ def post_and_record(
     reason: str,
     aliases: Iterable[str] = (),
     status: str = "posted",
-) -> None:
-    post(
+) -> bool:
+    posted_ok = post(
         client,
         channel,
         title=title,
@@ -54,6 +55,11 @@ def post_and_record(
         summary=summary,
         abstract=abstract,
     )
+
+    if not posted_ok:
+        return False
+    if DRY_RUN:
+        return True
 
     record_posted_entry(
         posted,
@@ -64,6 +70,7 @@ def post_and_record(
         journal=journal,
         reason=reason,
     )
+    return True
 
 
 def post_and_record_rss(
@@ -81,8 +88,8 @@ def post_and_record_rss(
     reason: str,
     aliases: Iterable[str] = (),
     status: str = "posted",
-) -> None:
-    post_and_record(
+) -> bool:
+    return post_and_record(
         client,
         channel,
         title=title,

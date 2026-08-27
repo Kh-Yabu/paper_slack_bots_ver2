@@ -1,0 +1,6 @@
+hours_back: 1
+keep_hours: 24
+timezone: UTC
+workspaces:
+  - name: default
+    journals: []

@@ -1,81 +1,134 @@
-# GitHub Actions Setup
+# GitHub Actions setup
 
-The included workflow runs the bot on a schedule and commits updated `posted_entries.txt` to prevent duplicate posts across runs.
+The included workflow installs the bot, runs tests, fetches new papers, posts them to Slack, and commits `posted_entries.txt` so later runs do not post the same paper again.
 
-## Workflow file
+## Enable Actions
 
-See [`.github/workflows/post_papers.yml`](../.github/workflows/post_papers.yml).
+After forking the repository, open the **Actions** tab. GitHub may ask you to enable workflows for the fork.
+
+The workflow file is [`.github/workflows/post_papers.yml`](../.github/workflows/post_papers.yml).
+
+## Add repository secrets
+
+Open:
+
+**Settings → Secrets and variables → Actions → New repository secret**
+
+Required:
+
+| Secret | Description |
+|---|---|
+| `OPENAI_API_KEY` | OpenAI API key used for summaries and the default relevance filter. |
+| `SLACK_API_TOKEN` | Slack bot token for the workspace named `default`. |
+
+Optional:
+
+| Secret | Description |
+|---|---|
+| `SPRINGER_API_KEY` | Required only for `source_type: springer_api`. |
+| `OPENALEX_API_KEY` | Optional OpenAlex API key. |
+
+GitHub's official UI steps are in [Using secrets in GitHub Actions](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets).
+
+## First run
+
+1. Open **Actions**.
+2. Select **Post new papers to Slack**.
+3. Select **Run workflow**.
+4. Leave `dry_run` enabled.
+5. Inspect the **Run bot** log.
+
+Dry run does not call OpenAI, post to Slack, or save duplicate state. When the configuration looks correct, run manually with `dry_run` disabled.
 
 ## Schedule
 
-The default cron runs four times daily (UTC):
+The default schedule runs four times per day:
 
 ```yaml
 schedule:
-  - cron: '20 21,1,5,9 * * *'
+  - cron: "20 21,1,5,9 * * *"
 ```
 
-| UTC | JST (approx.) |
-|-----|---------------|
+GitHub cron values use UTC.
+
+| UTC | Japan time (JST) |
+|---|---|
 | 21:20 | 06:20 next day |
 | 01:20 | 10:20 |
 | 05:20 | 14:20 |
 | 09:20 | 18:20 |
 
-Adjust the cron expression for your timezone and desired frequency.
+Change the cron expression in the workflow if needed. Keep `hours_back` in `config.yaml` longer than the gap between runs so a delayed workflow does not miss papers.
 
-## Required secrets
+## Generated `secrets.yaml`
 
-Configure these in **Settings → Secrets and variables → Actions**:
-
-| Secret | Description |
-|--------|-------------|
-| `OPENAI_API_KEY` | OpenAI API key for summarization |
-| `SLACK_API_TOKEN` | Slack bot token for the default workspace |
-| `SLACK_API_TOKEN_OTHER` | (optional) Token for additional workspaces |
-| `SPRINGER_API_KEY` | (optional) Springer Nature Meta API key |
-
-The workflow generates `secrets.yaml` at runtime from these secrets.
-
-## Runner
-
-The template workflow uses `ubuntu-latest`. For production you may prefer:
-
-- **Self-hosted runner** — useful when feeds block cloud IP ranges
-- **Scheduled cron on your own server** — run `python main.py` via cron instead
-
-To switch to a self-hosted runner, change:
+The workflow creates a temporary `secrets.yaml` inside the runner. The file is not committed. To change summary models or add another Slack workspace, edit this block in the workflow:
 
 ```yaml
-runs-on: self-hosted
+openai_api_key: "${{ secrets.OPENAI_API_KEY }}"
+openai_summary_model: "gpt-5.6-luna"
+
+slack_api_tokens:
+  default: "${{ secrets.SLACK_API_TOKEN }}"
 ```
 
-## Posted-entry persistence
+For another workspace:
 
-After each run, the workflow commits `posted_entries.txt` if it changed:
+1. Create a repository secret such as `SLACK_API_TOKEN_LAB_B`.
+2. Add a matching token entry to the workflow:
 
+```yaml
+slack_api_tokens:
+  default: "${{ secrets.SLACK_API_TOKEN }}"
+  lab_b: "${{ secrets.SLACK_API_TOKEN_LAB_B }}"
 ```
-chore: update posted_entries.txt [skip ci]
+
+3. Add `name: lab_b` under `workspaces` in `config.yaml`.
+
+## Duplicate-prevention state
+
+After a successful real run, the workflow commits only `posted_entries.txt`. The workflow has:
+
+```yaml
+permissions:
+  contents: write
 ```
 
-This prevents re-posting the same papers on the next scheduled run. Make sure the workflow has `contents: write` permission and can push to the branch it runs on.
+If your repository rules block direct pushes to the default branch, choose one of these approaches:
 
-## Dry-run flags in CI
+- Allow the GitHub Actions bot to update `posted_entries.txt`.
+- Run the bot from a dedicated branch that permits state commits.
+- Replace Git-based state with an external database or object store.
 
-The workflow sets environment variables to control behavior:
+The last option requires code changes and is outside the starter setup.
 
-| Variable | Typical production value | Description |
-|----------|------------------------|-------------|
-| `DRY_RUN` | `false` | Actually post to Slack |
-| `DRY_RUN_SUMMARIZE` | `true` | Call OpenAI for summarization |
-| `DRY_RUN_CLASSIFY` | `true` | Call LLM for prefilter |
+## GitHub Models relevance filter
 
-For initial testing, set `DRY_RUN=true` to inspect logs without posting.
+The workflow grants `models: read` and writes its built-in `${{ github.token }}` to the temporary secrets file. To use it for a journal, set:
 
-## Manual trigger
+```yaml
+prefilter:
+  provider: github
+  model: openai/gpt-4.1-nano
+  target_scope: Your relevance rules.
+```
 
-The workflow supports `workflow_dispatch` — run it manually from the Actions tab to test changes.
+OpenAI remains the starter default because the same API key is already required for summaries.
 
-## Branch setup
+## Common failures
 
-By default the workflow pushes to the same branch it runs on. If you use a dedicated deployment branch (e.g. `main` for public, `production` for your lab), update the push target in the commit step accordingly.
+### `Resource not accessible by integration` while saving state
+
+Check workflow `contents: write` permission and repository branch rules.
+
+### Secrets appear empty
+
+Confirm the names match exactly. GitHub returns an empty string for a missing secret. Secrets are also not provided to workflows triggered from untrusted forks.
+
+### The scheduled workflow does not run
+
+Confirm Actions are enabled, the workflow exists on the default branch, and the repository has not had scheduled workflows disabled because of inactivity.
+
+### A feed works locally but not on GitHub-hosted runners
+
+Some publishers block or throttle cloud IP addresses. Use another source adapter, add metadata fallback, reduce request volume, or move `runs-on` to a properly maintained self-hosted runner.

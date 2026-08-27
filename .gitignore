@@ -1,6 +1,10 @@
-.venv
-secrets.yaml
+.venv/
 .env
 .DS_Store
-__pycache__
+__pycache__/
+*.py[cod]
+.pytest_cache/
+secrets.yaml
 posted_entries_test.txt
+run_full.log
+springer_volume*.csv

@@ -535,6 +535,16 @@ def fetch_feed_bytes(
         if DRY_RUN:
             print(f"[DRY_RUN] feed_fetch_url_error url={url} error={e}")
         return b"", None, "", url
+    except TimeoutError as e:
+        # A socket read timeout may escape urllib as a bare TimeoutError.
+        # Treat it as an empty feed so one slow publisher does not abort the
+        # entire multi-journal run.
+        if DRY_RUN:
+            print(
+                f"[DRY_RUN] feed_fetch_timeout "
+                f"url={url} timeout={timeout} error={e}"
+            )
+        return b"", None, "", url
 
     # Wiley/AGU can still return 403 to Python urllib even when curl works
     # from the same GitHub Actions runner.  Keep RSS as the primary source and
@@ -577,6 +587,432 @@ def parse_feed_with_headers(journal: dict) -> feedparser.FeedParserDict:
     feed["href"] = final_url or url
     return feed
 
+
+def build_agu_taxonomy_feed_url(
+    concept_id: int | str,
+    *,
+    mi: str = "6hngq57",
+    sort_by: str = "Earliest",
+) -> str:
+    """
+    Build a Wiley/AGU RSS URL for one taxonomy ConceptID.
+
+    Keep the search restricted to the taxonomy itself.  In particular, do not
+    add AllField=seismology/volcanology, because that would turn the query into
+    an intersection with a text search rather than a pure taxonomy feed.
+    """
+    concept_id_text = str(concept_id).strip()
+    if not concept_id_text.isdigit():
+        raise ValueError(f"invalid AGU ConceptID: {concept_id!r}")
+
+    sort_by_text = str(sort_by or "Earliest").strip()
+    if sort_by_text not in {"Latest", "Earliest"}:
+        raise ValueError(
+            f"invalid AGU sort order: {sort_by!r}; "
+            "expected 'Latest' or 'Earliest'"
+        )
+
+    encoded_query = (
+        f"%2526ConceptID%253D{concept_id_text}"
+        "%2526content%253DarticlesChapters"
+        f"%2526sortBy%253D{sort_by_text}"
+        "%2526target%253Ddefault"
+    )
+    return (
+        "https://agupubs.onlinelibrary.wiley.com/action/showFeed"
+        f"?ui=0&mi={urllib.parse.quote(str(mi), safe='')}"
+        "&type=search&feed=rss"
+        f"&query={encoded_query}"
+    )
+
+
+def build_agu_keyword_feed_url(
+    search_term: str,
+    *,
+    mi: str = "6hngq57",
+    sort_by: str = "Earliest",
+) -> str:
+    """
+    Build a Wiley/AGU RSS URL for one broad AllField search term.
+
+    Empirical checks for this endpoint showed that Earliest returns the recent
+    side of the result set, so this source intentionally keeps Earliest fixed.
+    """
+    term = str(search_term or "").strip()
+    if not term:
+        raise ValueError("AGU search term must not be empty")
+
+    sort_by_text = str(sort_by or "Earliest").strip()
+    if sort_by_text != "Earliest":
+        raise ValueError(
+            f"invalid AGU broad-search sort order: {sort_by!r}; "
+            "expected 'Earliest'"
+        )
+
+    encoded_term = urllib.parse.quote(term, safe="")
+    encoded_query = (
+        f"%2526AllField%253D{encoded_term}"
+        "%2526content%253DarticlesChapters"
+        "%2526sortBy%253DEarliest"
+        "%2526target%253Ddefault"
+    )
+    return (
+        "https://agupubs.onlinelibrary.wiley.com/action/showFeed"
+        f"?ui=0&mi={urllib.parse.quote(str(mi), safe='')}"
+        "&type=search&feed=rss"
+        f"&query={encoded_query}"
+    )
+
+
+def _iter_agu_search_terms(journal: dict) -> list[str]:
+    """Normalize and de-duplicate broad AGU AllField search terms."""
+    raw_terms = journal.get("agu_search_terms") or []
+    if isinstance(raw_terms, str):
+        raw_terms = [raw_terms]
+
+    terms: list[str] = []
+    seen: set[str] = set()
+    for raw_term in raw_terms:
+        term = str(raw_term or "").strip()
+        key = term.casefold()
+        if not term or key in seen:
+            continue
+        seen.add(key)
+        terms.append(term)
+
+    return terms
+
+
+def _iter_agu_taxonomy_specs(journal: dict) -> list[dict]:
+    """
+    Normalize configured AGU taxonomy entries.
+
+    Expected configuration:
+      agu_taxonomies:
+        - name: Body Waves
+          index_term: "7203"
+          concept_id: 103783
+
+    Entries with a missing/null concept_id are ignored so a generated mapping
+    can be reviewed incrementally before every term has been resolved.
+    """
+    normalized: list[dict] = []
+
+    for raw_spec in journal.get("agu_taxonomies") or []:
+        if isinstance(raw_spec, dict):
+            concept_id = raw_spec.get("concept_id")
+            name = str(raw_spec.get("name") or "").strip()
+            index_term = str(raw_spec.get("index_term") or "").strip()
+            group = str(raw_spec.get("group") or "").strip()
+            direct_accept = bool(raw_spec.get("direct_accept", False))
+        else:
+            concept_id = raw_spec
+            name = ""
+            index_term = ""
+            group = ""
+            direct_accept = False
+
+        if concept_id in (None, ""):
+            continue
+
+        concept_id_text = str(concept_id).strip()
+        if not concept_id_text.isdigit():
+            raise ValueError(
+                f"invalid AGU taxonomy concept_id={concept_id!r} "
+                f"journal={journal.get('title', '')!r}"
+            )
+
+        normalized.append(
+            {
+                "concept_id": int(concept_id_text),
+                "name": name or f"ConceptID {concept_id_text}",
+                "index_term": index_term,
+                "group": group,
+                "direct_accept": direct_accept,
+            }
+        )
+
+    return normalized
+
+
+def _agu_entry_merge_key(entry: feedparser.FeedParserDict) -> str:
+    doi = extract_doi_from_entry(entry)
+    if doi:
+        return doi
+
+    raw = ensure_urlish(entry.get("link") or entry.get("id") or "")
+    if not raw:
+        return ""
+
+    parsed = urllib.parse.urlsplit(raw)
+    # Search-feed tracking parameters differ by taxonomy.  Strip them so the
+    # same article is merged even when no DOI could be extracted.
+    return urllib.parse.urlunsplit(
+        (
+            parsed.scheme.lower(),
+            parsed.netloc.lower(),
+            parsed.path.rstrip("/"),
+            "",
+            "",
+        )
+    )
+
+
+def _add_agu_search_provenance(
+    entry: feedparser.FeedParserDict,
+    search_term: str,
+) -> None:
+    terms = list(entry.get("agu_search_terms") or [])
+    if search_term not in terms:
+        terms.append(search_term)
+    entry["agu_search_terms"] = terms
+
+
+def _agu_entry_journal_names(entry: feedparser.FeedParserDict) -> list[str]:
+    """Return publisher journal names carried by an AGU search result."""
+    names: list[str] = []
+    for key in (
+        "prism_publicationname",
+        "publicationname",
+        "journal",
+        "dc_source",
+    ):
+        value = entry.get(key)
+        if isinstance(value, str) and value.strip() and value.strip() not in names:
+            names.append(value.strip())
+
+    source = entry.get("source")
+    if isinstance(source, dict):
+        value = source.get("title")
+        if isinstance(value, str) and value.strip() and value.strip() not in names:
+            names.append(value.strip())
+    return names
+
+
+def _merge_agu_entry(
+    target: feedparser.FeedParserDict,
+    incoming: feedparser.FeedParserDict,
+) -> None:
+    """Merge bibliographic data from another occurrence of the same DOI."""
+    journals = list(target.get("agu_journals") or [])
+    for name in _agu_entry_journal_names(target) + _agu_entry_journal_names(incoming):
+        if name not in journals:
+            journals.append(name)
+    target["agu_journals"] = journals
+
+    # A search result can be sparse in one feed and complete in another. Keep
+    # the richest text while filling any fields absent from the first result.
+    for key, value in incoming.items():
+        if not target.get(key) and value:
+            target[key] = value
+    for key in ("summary", "description", "content"):
+        current = target.get(key)
+        if len(str(value := incoming.get(key) or "")) > len(str(current or "")):
+            target[key] = value
+
+
+def _add_agu_taxonomy_provenance(
+    entry: feedparser.FeedParserDict,
+    spec: dict,
+) -> None:
+    labels = list(entry.get("agu_taxonomies") or [])
+    label = spec["name"]
+    if label not in labels:
+        labels.append(label)
+    entry["agu_taxonomies"] = labels
+
+    index_terms = list(entry.get("agu_index_terms") or [])
+    if spec.get("index_term") and spec["index_term"] not in index_terms:
+        index_terms.append(spec["index_term"])
+    entry["agu_index_terms"] = index_terms
+
+    concept_ids = list(entry.get("agu_concept_ids") or [])
+    concept_id = str(spec["concept_id"])
+    if concept_id not in concept_ids:
+        concept_ids.append(concept_id)
+    entry["agu_concept_ids"] = concept_ids
+
+    groups = list(entry.get("agu_taxonomy_groups") or [])
+    group = str(spec.get("group") or "").strip()
+    if group and group not in groups:
+        groups.append(group)
+    entry["agu_taxonomy_groups"] = groups
+
+    if spec.get("direct_accept"):
+        entry["agu_direct_accept"] = True
+
+
+
+def fetch_agu_taxonomy_feed(
+    journal: dict,
+    _hours_back: int,
+) -> feedparser.FeedParserDict:
+    """
+    Fetch broad AGU keyword RSS feeds and taxonomy RSS feeds, then merge them.
+
+    The broad AllField feeds are the primary discovery route. Configured
+    ConceptID taxonomy feeds provide additional provenance and optional
+    direct-accept information. All entries are merged by DOI (or normalized URL
+    fallback) before date checks, duplicate checks, metadata enrichment,
+    classification, summarization, or Slack posting.
+    """
+    specs = _iter_agu_taxonomy_specs(journal)
+    search_terms = _iter_agu_search_terms(journal)
+    mi = str(journal.get("agu_search_mi") or "6hngq57")
+    sort_by = "Earliest"
+
+    merged_entries: list[feedparser.FeedParserDict] = []
+    by_key: dict[str, feedparser.FeedParserDict] = {}
+    search_fetches: list[dict] = []
+    taxonomy_fetches: list[dict] = []
+
+    if DRY_RUN:
+        print(
+            "[DRY_RUN] agu_search_config "
+            f"journal={journal.get('title', '')} "
+            f"terms={search_terms} "
+            f"count={len(search_terms)} "
+            f"sort_by={sort_by}"
+        )
+        print(
+            "[DRY_RUN] agu_taxonomy_config "
+            f"journal={journal.get('title', '')} "
+            f"configured={len(journal.get('agu_taxonomies') or [])} "
+            f"normalized={len(specs)} "
+            f"sort_by={sort_by}"
+        )
+
+    # Primary discovery route: broad AllField searches.
+    for search_term in search_terms:
+        rss_url = build_agu_keyword_feed_url(
+            search_term,
+            mi=mi,
+            sort_by=sort_by,
+        )
+        child_journal = dict(journal)
+        child_journal["rss_url"] = rss_url
+
+        child_feed = parse_feed_with_headers(child_journal)
+        search_fetches.append(
+            {
+                "term": search_term,
+                "status": child_feed.get("status"),
+                "entries": len(child_feed.entries),
+                "href": child_feed.get("href") or rss_url,
+                "bozo": bool(child_feed.get("bozo")),
+            }
+        )
+
+        if DRY_RUN:
+            print(
+                "[DRY_RUN] agu_search_feed "
+                f"journal={journal.get('title', '')} "
+                f"term={search_term} "
+                f"status={child_feed.get('status')} "
+                f"entries={len(child_feed.entries)}"
+            )
+
+        for raw_entry in child_feed.entries:
+            key = _agu_entry_merge_key(raw_entry)
+            if key and key in by_key:
+                merged = by_key[key]
+                _merge_agu_entry(merged, raw_entry)
+                _add_agu_search_provenance(merged, search_term)
+                continue
+
+            entry = feedparser.FeedParserDict(dict(raw_entry))
+            _merge_agu_entry(entry, raw_entry)
+            _add_agu_search_provenance(entry, search_term)
+            merged_entries.append(entry)
+            if key:
+                by_key[key] = entry
+
+    # Secondary route: ConceptID taxonomy feeds.
+    for spec in specs:
+        rss_url = build_agu_taxonomy_feed_url(
+            spec["concept_id"],
+            mi=mi,
+            sort_by=sort_by,
+        )
+        child_journal = dict(journal)
+        child_journal["rss_url"] = rss_url
+
+        child_feed = parse_feed_with_headers(child_journal)
+        taxonomy_fetches.append(
+            {
+                "name": spec["name"],
+                "index_term": spec.get("index_term", ""),
+                "concept_id": spec["concept_id"],
+                "status": child_feed.get("status"),
+                "entries": len(child_feed.entries),
+                "href": child_feed.get("href") or rss_url,
+                "bozo": bool(child_feed.get("bozo")),
+            }
+        )
+
+        if DRY_RUN:
+            print(
+                "[DRY_RUN] agu_taxonomy_feed "
+                f"journal={journal.get('title', '')} "
+                f"taxonomy={spec['name']} "
+                f"group={spec.get('group', '')} "
+                f"direct_accept={spec.get('direct_accept', False)} "
+                f"index_term={spec.get('index_term', '')} "
+                f"concept_id={spec['concept_id']} "
+                f"status={child_feed.get('status')} "
+                f"entries={len(child_feed.entries)}"
+            )
+
+        for raw_entry in child_feed.entries:
+            key = _agu_entry_merge_key(raw_entry)
+            if key and key in by_key:
+                merged = by_key[key]
+                _merge_agu_entry(merged, raw_entry)
+                _add_agu_taxonomy_provenance(merged, spec)
+                continue
+
+            entry = feedparser.FeedParserDict(dict(raw_entry))
+            _merge_agu_entry(entry, raw_entry)
+            _add_agu_taxonomy_provenance(entry, spec)
+            merged_entries.append(entry)
+            if key:
+                by_key[key] = entry
+
+    all_fetches = search_fetches + taxonomy_fetches
+    statuses = [
+        item["status"]
+        for item in all_fetches
+        if item["status"] is not None
+    ]
+
+    aggregate_status: int | None
+    if not statuses:
+        aggregate_status = None
+    elif all(status == 200 for status in statuses):
+        aggregate_status = 200
+    else:
+        aggregate_status = next(
+            (status for status in statuses if status != 200),
+            statuses[0],
+        )
+
+    return feedparser.FeedParserDict(
+        {
+            "entries": merged_entries,
+            "feed": {
+                "title": journal.get("full_title") or journal.get("title", ""),
+            },
+            "href": "agu-search-taxonomy://merged",
+            "status": aggregate_status,
+            "bozo": any(item["bozo"] for item in all_fetches),
+            "agu_search_fetches": search_fetches,
+            "agu_search_feed_count": len(search_terms),
+            "agu_taxonomy_fetches": taxonomy_fetches,
+            "agu_taxonomy_feed_count": len(specs),
+            "agu_taxonomy_unique_entries": len(merged_entries),
+            "agu_merged_unique_entries": len(merged_entries),
+        }
+    )
 
 def debug_fetch_feed_head(url: str, journal_title: str, timeout: int = 10) -> None:
     if not DRY_RUN:
@@ -1134,6 +1570,9 @@ def record_rss_status(
     """
     Save RSS entry status together with DOI/URL aliases.
     """
+    if DRY_RUN:
+        return
+
     record_posted_entry(
         posted,
         entry_id,
@@ -1161,6 +1600,7 @@ class _JournalRunStats:
     source_openalex: int = 0
     source_crossref: int = 0
     source_metadata: int = 0
+    metadata_deferred: int = 0
     skipped_prefilter: int = 0
     skipped_title_pattern: int = 0
     prefilter_relevant: int = 0
@@ -1177,7 +1617,7 @@ class _JournalRunStats:
 
     def should_print_summary(self, source_type: str) -> bool:
         return DRY_RUN and (
-            source_type == "springer_api"
+            source_type in {"springer_api", "agu_taxonomy"}
             or self.candidate > 0
             or self.skipped_keyword > 0
             or self.skipped_prefilter > 0
@@ -1202,6 +1642,7 @@ class _JournalRunStats:
             f"source_openalex={self.source_openalex} "
             f"source_crossref={self.source_crossref} "
             f"source_metadata={self.source_metadata} "
+            f"metadata_deferred={self.metadata_deferred} "
             f"skipped_prefilter={self.skipped_prefilter} "
             f"skipped_title_pattern={self.skipped_title_pattern} "
             f"prefilter_relevant={self.prefilter_relevant} "
@@ -1247,6 +1688,7 @@ _FEED_FETCHERS: dict[str, FeedFetcher] = {
     "rss": _fetch_rss_feed,
     "springer_api": fetch_springer_api_feed,
     "copernicus_recent": _fetch_copernicus_feed,
+    "agu_taxonomy": fetch_agu_taxonomy_feed,
 }
 _DEFAULT_FEED_FETCHER = _fetch_rss_feed
 
@@ -1276,6 +1718,7 @@ def _debug_log_empty_feed(
     if not (
         source_type == "springer_api"
         or source_type == "copernicus_recent"
+        or source_type == "agu_taxonomy"
         or "springer.com" in rss_url
         or "nature.com" in rss_url
         or "agupubs.onlinelibrary.wiley.com" in rss_url
@@ -1286,6 +1729,15 @@ def _debug_log_empty_feed(
     if source_type == "springer_api":
         print(
             f"[DRY_RUN] springer_api_no_entries journal={journal.get('title', '')}"
+        )
+    elif source_type == "agu_taxonomy":
+        print(
+            "[DRY_RUN] agu_taxonomy_no_entries "
+            f"journal={journal.get('title', '')} "
+            f"search_feeds={feed.get('agu_search_feed_count', 0)} "
+            f"taxonomy_feeds={feed.get('agu_taxonomy_feed_count', 0)} "
+            f"search_fetches={feed.get('agu_search_fetches', [])} "
+            f"taxonomy_fetches={feed.get('agu_taxonomy_fetches', [])}"
         )
     else:
         debug_fetch_feed_head(rss_url, journal.get("title", ""))
@@ -1307,6 +1759,27 @@ def _debug_log_feed_status(
         f"href={feed.get('href')} "
         f"feed_title={getattr(feed, 'feed', {}).get('title', '')}"
     )
+
+    if journal.get("source_type") == "agu_taxonomy":
+        entry_dates = [
+            value
+            for value in (get_entry_datetime(entry) for entry in feed.entries)
+            if value is not None
+        ]
+        oldest = min(entry_dates).isoformat() if entry_dates else ""
+        newest = max(entry_dates).isoformat() if entry_dates else ""
+        print(
+            "[DRY_RUN] agu_taxonomy_merge "
+            f"journal={journal.get('title', '')} "
+            f"search_feeds={feed.get('agu_search_feed_count', 0)} "
+            f"taxonomy_feeds={feed.get('agu_taxonomy_feed_count', 0)} "
+            f"unique_entries={feed.get('agu_merged_unique_entries', 0)} "
+            f"search_raw_entries={sum(item.get('entries', 0) for item in feed.get('agu_search_fetches', []))} "
+            f"taxonomy_raw_entries={sum(item.get('entries', 0) for item in feed.get('agu_taxonomy_fetches', []))} "
+            f"dated_entries={len(entry_dates)} "
+            f"oldest={oldest} "
+            f"newest={newest}"
+        )
 
 
 def _step_validate_window(ctx: _RssEntryContext, stats: _JournalRunStats) -> bool:
@@ -1352,8 +1825,8 @@ def _step_resolve_identity(
         ctx.url_entry_id,
     )
     if existing_key:
-        stats.duplicate += 1
         existing = posted[existing_key]
+        stats.duplicate += 1
 
         # If one identifier is already known, save the other as an alias.
         record_rss_status(
@@ -1387,7 +1860,7 @@ def _step_filter_title(
     if not is_excluded:
         return False
 
-    if DRY_RUN and ctx.journal.get("title") == "EPSL":
+    if DRY_RUN:
         print(
             f"[DRY_RUN] skip_title_pattern "
             f"journal={ctx.journal.get('title', '')} "
@@ -1425,7 +1898,7 @@ def _step_filter_keyword(
     if matches_include_keywords(ctx.title_text, ctx.rss_text, ctx.journal):
         return False
 
-    if DRY_RUN and ctx.journal.get("title") == "EPSL":
+    if DRY_RUN:
         print(
             f"[DRY_RUN] skip_keyword "
             f"journal={ctx.journal.get('title', '')} "
@@ -1485,6 +1958,19 @@ def _step_resolve_abstract(
             pub_dt=ctx.pub_dt,
         )
 
+        transient_error = meta.get("_metadata_transient_error")
+        if transient_error:
+            stats.metadata_deferred += 1
+            print(
+                "[WARN] metadata_deferred "
+                f"journal={ctx.journal.get('title', '')} "
+                f"source={transient_error.get('source', 'unknown')} "
+                f"status={transient_error.get('status', 'unknown')} "
+                f"entry_id={ctx.entry_id}"
+            )
+            # Do not mark the item as processed. A later scheduled run can retry.
+            return True
+
         meta_doi = meta.get("doi", "")
         meta_abs = meta.get("abstract", "")
         if is_bibliographic_metadata(meta_abs):
@@ -1498,8 +1984,8 @@ def _step_resolve_abstract(
                 # as aliases and skip even if URL key was new.
                 existing_key = find_existing_posted_key(posted, doi_entry_id)
                 if existing_key:
-                    stats.duplicate += 1
                     existing = posted[existing_key]
+                    stats.duplicate += 1
 
                     record_rss_status(
                         posted,
@@ -1512,12 +1998,13 @@ def _step_resolve_abstract(
                     )
                     return True
 
-                ctx.entry_id = doi_entry_id
-                ctx.aliases = [
-                    candidate
-                    for candidate in (previous_entry_id, ctx.url_entry_id)
-                    if candidate and candidate != ctx.entry_id
-                ]
+                else:
+                    ctx.entry_id = doi_entry_id
+                    ctx.aliases = [
+                        candidate
+                        for candidate in (previous_entry_id, ctx.url_entry_id)
+                        if candidate and candidate != ctx.entry_id
+                    ]
 
         if meta_abs and len(meta_abs) >= max(len(ctx.abstract_en), 300):
             ctx.abstract_en = meta_abs
@@ -1532,14 +2019,38 @@ def _step_classify_and_post(
     posted: dict[str, PostedRecord],
     stats: _JournalRunStats,
 ) -> None:
-    decision, relevance_reason = classify_relevance(
-        ctx.entry.get("title", ""),
-        ctx.abstract_en,
-        ctx.journal,
-    )
-    if relevance_reason == "classifier_failed":
-        stats.skipped_prefilter += 1
-        return
+    if ctx.source_type == "agu_taxonomy" and ctx.entry.get("agu_direct_accept"):
+        decision, relevance_reason = "relevant", "agu_taxonomy_direct_accept"
+    else:
+        classify_journal = ctx.journal
+        if ctx.source_type == "agu_taxonomy" and ctx.journal.get("prefilter"):
+            classify_journal = dict(ctx.journal)
+            prefilter = dict(classify_journal.get("prefilter") or {})
+            base_scope = str(prefilter.get("target_scope") or "").strip()
+            labels = ", ".join(ctx.entry.get("agu_taxonomies") or [])
+            index_terms = ", ".join(ctx.entry.get("agu_index_terms") or [])
+            groups = ", ".join(ctx.entry.get("agu_taxonomy_groups") or [])
+            search_terms = ", ".join(ctx.entry.get("agu_search_terms") or [])
+            journals = ", ".join(ctx.entry.get("agu_journals") or [])
+            context = (
+                "This entry was retrieved through AGU broad keyword search "
+                "and/or AGU taxonomy metadata. "
+                f"Matched broad search terms: {search_terms or 'none'}. "
+                f"Publishing journals: {journals or 'unknown'}. "
+                f"Groups: {groups or 'unknown'}. "
+                f"Index Terms: {index_terms or 'unknown'}. "
+                f"Taxonomy labels: {labels or 'unknown'}."
+            )
+            prefilter["target_scope"] = (
+                f"{base_scope}\n\n{context}" if base_scope else context
+            )
+            classify_journal["prefilter"] = prefilter
+
+        decision, relevance_reason = classify_relevance(
+            ctx.entry.get("title", ""),
+            ctx.abstract_en,
+            classify_journal,
+        )
     if decision == "relevant":
         stats.prefilter_relevant += 1
     elif decision == "uncertain":
@@ -1579,8 +2090,7 @@ def _step_classify_and_post(
         print(f"[DRY_RUN] abstract_length={len(ctx.abstract_en)}")
 
     summary = maybe_summarize(ctx.entry.title, ctx.abstract_en)
-    stats.posted += 1
-    post_and_record_rss(
+    if post_and_record_rss(
         client,
         ctx.journal["slack_channel_id"],
         title=ctx.entry.title,
@@ -1593,7 +2103,8 @@ def _step_classify_and_post(
         journal=ctx.journal.get("title", ""),
         reason=f"posted:{ctx.abstract_source}",
         aliases=ctx.aliases,
-    )
+    ):
+        stats.posted += 1
 
 
 def _process_rss_entry(
