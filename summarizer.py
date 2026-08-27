@@ -1,86 +1,90 @@
 from __future__ import annotations
 
+import os
 import time
 
-from bot_config import DRY_RUN, DRY_RUN_SUMMARIZE, client_oa, secrets
+from bot_config import DRY_RUN, DRY_RUN_SUMMARIZE, client_oa, config, secrets
+
+
+SUMMARY_MODEL = (
+    os.getenv("OPENAI_SUMMARY_MODEL", "").strip()
+    or str(secrets.get("openai_summary_model") or "").strip()
+    or str(secrets.get("openai_model") or "").strip()
+    or "gpt-5.6-luna"
+)
+SUMMARY_REASONING_EFFORT = (
+    os.getenv("OPENAI_SUMMARY_REASONING_EFFORT", "").strip()
+    or str(secrets.get("openai_summary_reasoning_effort") or "").strip()
+    or "low"
+)
+
+
+def _summary_preferences() -> tuple[str, str]:
+    settings = config.get("summarization") or {}
+    language = str(settings.get("language") or "Japanese").strip()
+    instructions = str(settings.get("instructions") or "").strip()
+    return language, instructions
 
 
 def summarize(title: str, abstract_en: str) -> str:
+    language, custom_instructions = _summary_preferences()
     system_msg = {
         "role": "system",
         "content": (
-            "あなたは、固体地球物理学（地震学・測地学・火山学）の英語アブストラクトを、"
-            "深く理解し、正確・簡潔・論文調の自然な日本語で要約する専門家です。"
-            "推測や誇張をせず、Abstractに書かれている範囲だけで背景・目的・成果・意義を整理してください。"
-            "用語は日本の地球科学分野で一般的な訳語を優先し、表記揺れを避けて統一します。"
-            "定訳が確信できない語は、無理にカタカナ化せず英語のまま残します（必要なら簡単な説明を添えます）。"
+            "You summarize academic paper abstracts accurately and concisely. "
+            "Use only information stated in the title and abstract. Do not add "
+            "claims, implications, or terminology that the source does not support."
         ),
     }
-
     user_msg = {
         "role": "user",
         "content": (
-            f"{abstract_en}\n\n"
-            f"これは “{title}” というタイトルの論文のAbstractです。\n"
-            "【出力形式（Slack mrkdwn）】\n"
-            "1. *タイトルの和訳*（論文調で自然な日本語。必要なら初出のみ括弧で英語/カタカナ併記）\n"
-            "2. *要点を4点*（背景→目的→成果→意義の順、箇条書き、太字不要）\n"
-            "- 各点は1〜2文、重複を避ける（背景に成果を書かない等）\n"
-            "- 数式は文章に言い換える（記号は必要最小限）\n\n"
-            "【分野判定】\n"
-            "固体地球物理学の論文に該当しない場合は要約しない。\n"
-            "その場合、固体地球物理学との関連がAbstract内に見えないときは、\n"
-            "「これは〇〇分野の△△に関する論文です。」の1文のみ出力。\n"
-            "固体地球物理学の論文そのものではないが、地震・断層・火山・測地・地殻変動・地球内部構造・"
-            "地表荷重・斜面災害などとの関連がAbstract内に明示されている場合は、\n"
-            "上記の分野判定文に続けて、固体地球物理学の読者にとっての意義を \n"
-            "「【現象・対象】を【関心・各分野】へ接続する事例として参照できます。」 \n"
-            "という形式で簡潔に1文で追記する。\n"
-            "この場合も4点要約は行わない。\n"
-            "追悼文・編集後記・謝辞・会議報告などの論文ではない文章は、\n"
-            "内容を一文で要約する。\n"
-            "【欠損判定】\n"
-            "要約が提供されていない、または途切れている場合は、\n"
-            "タイトルの和訳のみ出力。\n"
-            "【自己点検】\n"
-            "4点すべて揃っているか／各点が重複していないか確認してから出力。"
+            f"Title:\n{title}\n\n"
+            f"Abstract:\n{abstract_en}\n\n"
+            f"Write the output in {language} using Slack mrkdwn.\n"
+            "1. Start with a natural translation of the title in bold.\n"
+            "2. Add four concise bullet points covering background, objective or "
+            "method, main result, and significance.\n"
+            "3. Preserve established technical terms and numerical results.\n"
+            "4. If the abstract is missing or incomplete, translate only the title."
+            + (
+                f"\n\nAdditional instructions:\n{custom_instructions}"
+                if custom_instructions
+                else ""
+            )
         ),
     }
 
-    retries = 3
-    for i in range(retries):
+    for attempt in range(1, 4):
         try:
-            rsp = client_oa.responses.create(
-                model=secrets["openai_model"],
-                input=[system_msg, user_msg],
-                text={"verbosity": "low"},
-            )
+            request = {
+                "model": SUMMARY_MODEL,
+                "input": [system_msg, user_msg],
+                "text": {"verbosity": "low"},
+            }
+            if SUMMARY_MODEL.startswith(("gpt-5", "o1", "o3", "o4")):
+                request["reasoning"] = {"effort": SUMMARY_REASONING_EFFORT}
 
-            text = (getattr(rsp, "output_text", None) or "").strip()
+            response = client_oa.responses.create(**request)
+            text = (getattr(response, "output_text", None) or "").strip()
             if not text:
-                raise RuntimeError(
-                    f"Empty model output "
-                    f"(status={getattr(rsp, 'status', None)} "
-                    f"error={getattr(rsp, 'error', None)})"
-                )
+                raise RuntimeError("OpenAI returned an empty summary")
             return text
+        except Exception as exc:
+            print(
+                f"[WARN] summary attempt={attempt}/3 model={SUMMARY_MODEL} "
+                f"error={type(exc).__name__}"
+            )
+            if attempt < 3:
+                time.sleep(5)
 
-        except Exception as e:
-            print(f"Retry {i + 1}/{retries} due to API error: {e}")
-            time.sleep(5)
-
-    raise RuntimeError("OpenAI API failed after retries.")
+    raise RuntimeError(f"OpenAI summary failed after retries: model={SUMMARY_MODEL}")
 
 
 def maybe_summarize(title: str, abstract_en: str) -> str:
-    """
-    Generate summary unless dry-run summarization is disabled.
-    This prevents unnecessary OpenAI API calls during dry-run tests.
-    """
     if DRY_RUN and not DRY_RUN_SUMMARIZE:
         return (
             "[DRY_RUN] Summary generation skipped. "
             "Set DRY_RUN_SUMMARIZE=true to test OpenAI summarization."
         )
-
     return summarize(title, abstract_en)

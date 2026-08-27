@@ -1,153 +1,300 @@
-# Configuration Reference
+# Configuration reference
 
-This document describes all options in `config.yaml` and `secrets.yaml`.
+The bot reads public settings from `config.yaml` and credentials from `secrets.yaml`. Keep `secrets.yaml` private.
+
+## Minimal configuration
+
+```yaml
+hours_back: 48
+keep_hours: 2000
+timezone: Asia/Tokyo
+
+summarization:
+  language: Japanese
+  instructions: Write for researchers in computational biology.
+
+workspaces:
+  - name: default
+    arxiv:
+      slack_channel_id: C01234567
+      categories: [q-bio.BM]
+      keywords: [protein, structure prediction]
+    journals: []
+```
 
 ## Global settings
 
 | Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `hours_back` | int | `48` | How many hours back to fetch entries from each source |
-| `keep_hours` | int | `2000` | How long to retain records in `posted_entries.txt` before pruning |
+|---|---|---|---|
+| `hours_back` | integer | `48` | Only process papers published within this many hours. Make this longer than the interval between scheduled runs. |
+| `keep_hours` | integer | `2000` | Retain duplicate-prevention records for this many hours. |
+| `timezone` | string | `Asia/Tokyo` | IANA timezone used for date comparisons and saved state, for example `UTC` or `America/New_York`. |
 
-## Workspace
+## Summarization
 
-Each item under `workspaces` represents one Slack workspace.
+```yaml
+summarization:
+  language: Japanese
+  instructions: >
+    Write for graduate students in materials science.
+    Preserve alloy names and measured values.
+```
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `name` | string | Workspace identifier; must match a key in `slack_api_tokens` |
+| Key | Default | Description |
+|---|---|---|
+| `language` | `Japanese` | Output language passed to the summary model. |
+| `instructions` | empty | Optional audience, field, terminology, or style guidance. |
 
-A workspace may define any combination of `arxiv`, `eartharxiv`, and `journals`.
+The standard output is a translated title followed by four concise bullets covering background, objective or method, result, and significance.
+
+## Workspaces
+
+Every item under `workspaces` represents one Slack workspace.
+
+| Key | Required | Description |
+|---|---|---|
+| `name` | yes | Must match a key under `slack_api_tokens` in `secrets.yaml`. |
+| `arxiv` | no | arXiv source settings. |
+| `eartharxiv` | no | EarthArXiv source settings. |
+| `journals` | no | A list of RSS/API sources. An empty list is valid. |
 
 ## arXiv
 
-| Key | Type | Required | Description |
-|-----|------|----------|-------------|
-| `slack_channel_id` | string | yes | Slack channel to post to |
-| `categories` | list | yes | arXiv categories (e.g. `physics.geo-ph`, `cs.AI`) |
-| `keywords` | list | no | Case-insensitive abstract keyword filter |
+```yaml
+arxiv:
+  slack_channel_id: C01234567
+  categories:
+    - cs.AI
+    - cs.LG
+  keywords:
+    - diffusion model
+    - reinforcement learning
+```
+
+| Key | Required | Description |
+|---|---|---|
+| `slack_channel_id` | yes | Destination Slack channel ID. |
+| `categories` | yes | arXiv category IDs. |
+| `keywords` | no | Case-insensitive Abstract substrings. An empty list accepts every paper in the categories. |
 
 ## EarthArXiv
 
-| Key | Type | Required | Description |
-|-----|------|----------|-------------|
-| `slack_channel_id` | string | yes | Slack channel to post to |
-| `keywords` | list | no | Case-insensitive keyword filter on title + abstract |
+```yaml
+eartharxiv:
+  slack_channel_id: C01234567
+  keywords:
+    - earthquake
+    - geodesy
+```
 
-## Journal entries (common fields)
+`keywords` is matched case-insensitively against the title and Abstract. An empty list accepts all new records.
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `title` | string | — | Short label used in logs and posted-entry records |
-| `full_title` | string | — | Full journal name for metadata lookup |
-| `source_type` | string | `rss` | `rss`, `springer_api`, or `copernicus_recent` |
-| `rss_url` | string | — | Feed URL (required for `rss` and `copernicus_recent`) |
-| `slack_channel_id` | string | — | Slack channel to post to |
-| `link_tag` | string | `link` | RSS field for paper URL |
-| `abstract_tag` | string | `summary` | RSS field for abstract text |
-| `include_keywords` | list | — | First-stage filter: keyword must appear in title or abstract |
-| `exclude_title_patterns` | list | — | Skip entries whose title contains any of these strings |
-| `metadata_fallback` | list | — | Sources to fetch missing abstracts: `openalex`, `crossref`, `html` |
-| `abstract_fallback` | list | — | Additional abstract sources (journal-specific) |
-| `min_abstract_length` | int | — | Skip entries with shorter abstracts after enrichment |
-| `date_strategy` | string | `entry` | How to determine publication date: `entry` or `feed_last_build` |
-| `issn` / `eissn` | string | — | Helps Crossref / OpenAlex matching |
-| `prefilter` | object | — | LLM relevance filter (see below) |
-| `prefilter_uncertain` | string | `post` | Action for uncertain papers: `post` or `skip` |
+## Journal sources: common fields
 
-## LLM prefilter
+```yaml
+journals:
+  - title: Example Journal
+    full_title: Journal of Example Science
+    rss_url: https://journal.example.org/rss/latest.xml
+    slack_channel_id: C01234567
+    abstract_tag: summary
+    include_keywords:
+      - target topic
+    exclude_title_patterns:
+      - Editorial
+      - Correction
+```
 
-Used for broad journal feeds where keyword filtering alone is insufficient.
+| Key | Default | Description |
+|---|---|---|
+| `title` | required | Short source name used in logs and state records. |
+| `full_title` | `title` | Full journal name used in metadata matching. |
+| `source_type` | `rss` | `rss`, `springer_api`, `copernicus_recent`, or `agu_taxonomy`. |
+| `rss_url` | none | RSS/Atom URL. Required by a standard RSS source. |
+| `slack_channel_id` | required | Destination Slack channel ID. |
+| `abstract_tag` | `summary` | Feed field containing the Abstract: commonly `summary`, `description`, or `content`. |
+| `include_keywords` | empty | At least one case-insensitive keyword must appear in title or available feed text. Empty accepts all. |
+| `exclude_title_patterns` | empty | Skip titles containing any configured string. |
+| `date_strategy` | `entry` | Use `feed_last_build` only when entries have no per-item publication date. |
+| `feed_timeout` | `30` | Feed request timeout in seconds. |
+
+## Abstract and DOI enrichment
+
+```yaml
+metadata_fallback:
+  - openalex
+  - crossref
+abstract_fallback:
+  - html
+min_abstract_length: 500
+metadata_timeout: 5
+html_timeout: 8
+issn: "1234-5678"
+```
+
+| Key | Description |
+|---|---|
+| `metadata_fallback` | Metadata services used to recover a DOI or Abstract. `crossref` plus `openalex` first resolves the DOI, then performs the more reliable OpenAlex DOI lookup. |
+| `abstract_fallback` | Add `html` to try extracting an Abstract from the article page. |
+| `min_abstract_length` | Enrichment runs when the current Abstract is shorter than this value. |
+| `issn` / `crossref_issn` | Narrows Crossref matching. |
+| `metadata_match_threshold` | Minimum Crossref title similarity; default `0.92`. |
+| `metadata_timeout` | Metadata request timeout in seconds. |
+| `html_timeout` | Publisher HTML request timeout in seconds. |
+
+Transient API errors do not mark the paper as processed, so a later scheduled run can retry it.
+
+## Optional LLM relevance filter
 
 ```yaml
 prefilter:
-  method: llm
-  provider: github          # github | openai
-  model: openai/gpt-4.1-nano  # optional override
+  provider: openai
+  model: gpt-5.6-luna
+  reasoning_effort: low
   target_scope: >
-    Describe your target research field in plain language.
-    Be explicit about what is relevant, irrelevant, and uncertain.
+    Include papers about battery degradation and electrochemical interfaces.
+    Exclude studies that only discuss grid economics.
+  fallback_models:
+    - gpt-5.6-terra
+prefilter_uncertain: post
 ```
 
-The classifier returns one of:
+| Key | Default | Description |
+|---|---|---|
+| `provider` | value in `secrets.yaml`, then `openai` | `openai` or `github`. |
+| `model` | provider default | Per-source model override. |
+| `reasoning_effort` | `low` | OpenAI reasoning effort. |
+| `target_scope` | generic | Plain-language relevant and irrelevant criteria. Be explicit. |
+| `fallback_models` | empty | Models tried in order if the primary model fails. |
+| `prefilter_uncertain` | `post` | Use `skip` for strict filtering. |
 
-- `relevant` — paper is posted
-- `irrelevant` — paper is skipped
-- `uncertain` — handled according to `prefilter_uncertain`
+The classifier returns `relevant`, `irrelevant`, or `uncertain`. If every model call fails, the decision is `uncertain` so that an API problem does not silently discard a paper.
 
-## Springer Nature API (`source_type: springer_api`)
+### Deterministic hard includes
 
-Requires `springer_api_key` in `secrets.yaml`.
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `springer_queries` | list | — | Springer Meta API query strings |
-| `springer_page_size` | int | `25` | Records per API page |
-| `springer_max_pages` | int | `1` | Maximum pages to fetch per query |
-
-Example query:
+Use these sparingly when some keywords must always pass without an LLM call.
 
 ```yaml
-springer_queries:
-  - '(issn:0028-0836 AND ("earthquake" OR "seismic"))'
+prefilter:
+  provider: openai
+  target_scope: Papers about public research datasets.
+  hard_include_patterns:
+    - field: title       # title | abstract | all
+      pattern: "open (data|dataset)"
+      rule: open_dataset
 ```
 
-## Copernicus recent listing (`source_type: copernicus_recent`)
+Patterns are case-insensitive regular expressions.
 
-Scrapes the recent-preprint HTML page instead of a standard RSS feed.
+## Springer Nature Meta API
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `copernicus_recent_url` | string | — | Journal root URL |
-| `copernicus_recent_max_entries` | int | `100` | Maximum entries to scrape |
+Requires `springer_api_key` in `secrets.yaml` or the `SPRINGER_API_KEY` environment variable.
 
-## secrets.yaml
+```yaml
+- title: Springer Example
+  source_type: springer_api
+  springer_queries:
+    - '(issn:1234-5678 AND ("battery" OR "electrochemical"))'
+  springer_page_size: 20
+  springer_max_pages: 5
+  slack_channel_id: C01234567
+```
 
-| Key | Required | Description |
-|-----|----------|-------------|
-| `openai_api_key` | yes | OpenAI API key for summarization |
-| `openai_model` | yes | Model for summarization (e.g. `gpt-4o-mini`) |
-| `slack_api_token` | yes* | Bot token for a single workspace |
-| `slack_api_tokens` | yes* | Map of workspace name → bot token |
-| `classifier_provider` | no | Default LLM provider for prefilter: `github` or `openai` |
-| `classifier_model` | no | Default model for GitHub Models prefilter |
-| `github_token` | if using GitHub Models | GitHub personal access token or `${{ github.token }}` in Actions |
-| `springer_api_key` | if using Springer API | Springer Nature Meta API key |
+| Key | Default | Description |
+|---|---|---|
+| `springer_queries` | none | One or more Meta API query strings. |
+| `springer_query` | none | Single-query alternative. |
+| `springer_page_size` | `20` | Results per page. |
+| `springer_max_pages` | `5` | Maximum pages fetched per query. |
+| `springer_timeout` | `10` | Request timeout in seconds. |
+| `springer_date_filter_field` | `onlinedate` | API date field: `onlinedate`, `date`, or `year`. |
+| `springer_date_filter_buffer_hours` | `24` | Extra time around the requested date window. |
 
-\* Provide either `slack_api_token` or `slack_api_tokens`.
+If no query is given and `issn` is present, the bot uses `issn:<value>`.
+
+## Copernicus recent listing
+
+```yaml
+- title: Copernicus Example
+  source_type: copernicus_recent
+  copernicus_recent_url: https://example.copernicus.org/
+  copernicus_recent_max_entries: 100
+  slack_channel_id: C01234567
+```
+
+This source parses the journal's recent-preprint HTML page instead of a normal feed.
+
+## AGU / Wiley keyword and taxonomy search
+
+```yaml
+- title: AGU Example
+  source_type: agu_taxonomy
+  slack_channel_id: C01234567
+  agu_search_terms:
+    - earthquake
+    - seismic
+  agu_taxonomies:
+    - name: Seismology
+      concept_id: 123456
+      group: Solid Earth
+      direct_accept: false
+  prefilter:
+    provider: openai
+    target_scope: Papers relevant to the group's AGU interests.
+```
+
+The bot fetches each broad keyword and taxonomy feed, merges repeated records by DOI or normalized URL, and carries the matched terms into the relevance prompt. `concept_id` values are publisher identifiers and must be verified against the current Wiley/AGU search site. Set `direct_accept: true` only for a taxonomy that should bypass LLM classification.
+
+## `secrets.yaml`
+
+Start by copying `secrets.example.yaml`.
+
+```yaml
+openai_api_key: "..."
+openai_summary_model: gpt-5.6-luna
+openai_summary_reasoning_effort: low
+openai_prefilter_model: gpt-5.6-luna
+
+slack_api_tokens:
+  default: xoxb-...
+```
+
+Optional keys:
+
+| Key | Description |
+|---|---|
+| `classifier_provider` | Default `openai` or `github`. |
+| `classifier_model` | Default GitHub Models model name. |
+| `classifier_fallback_models` | GitHub Models fallback list. |
+| `github_token` | Required when using GitHub Models locally. GitHub Actions supplies its built-in token. |
+| `springer_api_key` | Required for Springer API sources. |
+| `slack_api_token` | Backward-compatible single-workspace token; `slack_api_tokens` is clearer. |
 
 ## Environment variables
 
-These override file paths and runtime behavior. Useful for local testing and CI.
-
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `CONFIG_FILE` | `config.yaml` | Path to config file |
-| `SECRETS_FILE` | `secrets.yaml` | Path to secrets file |
-| `POSTED_FILE` | `posted_entries.txt` | Path to posted-entry log |
-| `DRY_RUN` | `false` | Skip Slack posting; print what would be posted |
-| `DRY_RUN_SUMMARIZE` | `false` | When `DRY_RUN=true`, still call OpenAI for summarization |
-| `DRY_RUN_CLASSIFY` | `false` | When `DRY_RUN=true`, still call LLM for prefilter |
-| `OVERRIDE_SLACK_CHANNEL_ID` | — | Redirect all posts to this channel (testing) |
-| `GITHUB_TOKEN` | — | Fallback for `github_token` in secrets |
-| `SPRINGER_API_KEY` | — | Fallback for `springer_api_key` in secrets |
+|---|---|---|
+| `CONFIG_FILE` | `config.yaml` | Alternate config path. |
+| `SECRETS_FILE` | `secrets.yaml` | Alternate secrets path. |
+| `POSTED_FILE` | `posted_entries.txt` | Alternate duplicate state path. |
+| `DRY_RUN` | `false` | Print Slack messages instead of posting and do not save state. |
+| `DRY_RUN_SUMMARIZE` | `false` | Allow summary API calls during dry run. |
+| `DRY_RUN_CLASSIFY` | `false` | Allow relevance API calls during dry run. |
+| `OVERRIDE_SLACK_CHANNEL_ID` | empty | Redirect every real post to one test channel. |
+| `OPENAI_SUMMARY_MODEL` | secret/default | Override summary model. |
+| `OPENAI_SUMMARY_REASONING_EFFORT` | `low` | Override summary reasoning effort. |
+| `GITHUB_TOKEN` | empty | Fallback GitHub Models token. |
+| `SPRINGER_API_KEY` | empty | Fallback Springer API key. |
+| `OPENALEX_API_KEY` | empty | Optional OpenAlex key. |
+| `OPENALEX_MAILTO` | empty | Optional contact email for OpenAlex polite-pool usage. |
+| `BOT_TIMEZONE` | value in `config.yaml` | Override the configured IANA timezone. |
 
-### Recommended dry-run command
+## `posted_entries.txt`
 
-```bash
-DRY_RUN=true DRY_RUN_CLASSIFY=true DRY_RUN_SUMMARIZE=true python main.py
+The bot records processed papers to prevent duplicate posts. Each tab-separated line contains:
+
+```text
+<entry_id>  <date/time>  <status>  <source>  <reason>
 ```
 
-## posted_entries.txt
-
-The bot records every processed entry to avoid duplicate posts. Each line is tab-separated:
-
-```
-<entry_id>	<posted_at_jst>	<status>	<journal>	<reason>
-```
-
-- `entry_id`: normalized URL or DOI
-- `status`: `posted`, `skipped`, etc.
-- `reason`: why the entry was posted or skipped (e.g. prefilter decision)
-
-Old records are pruned automatically based on `keep_hours`.
+DOI and URL aliases may point to the same canonical record. Records older than `keep_hours` are pruned automatically.

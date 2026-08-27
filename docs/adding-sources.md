@@ -1,134 +1,76 @@
-# Adding a New Source
+# Adding paper sources
 
-This guide walks through adding a new journal or feed to your configuration.
+Start with one source and a test Slack channel. Run with `DRY_RUN=true` before enabling real posts.
 
-## 1. Standard RSS feed
-
-Most journals provide an RSS or Atom feed. Start with the simplest setup:
+## Standard RSS or Atom feed
 
 ```yaml
-- title: My Journal
-  rss_url: https://journal.example.com/rss/advance-access.xml
-  link_tag: link
-  abstract_tag: summary
-  slack_channel_id: C01234567
-  exclude_title_patterns:
-    - Editorial
-    - Book review
+workspaces:
+  - name: default
+    journals:
+      - title: Example Journal
+        rss_url: https://journal.example.org/rss/latest.xml
+        slack_channel_id: C01234567
+        abstract_tag: summary
 ```
 
-### Finding the right RSS fields
+Common Abstract fields are:
 
-Inspect the feed XML to determine field names:
+| Feed style | Try first |
+|---|---|
+| RSS with `<description>` | `abstract_tag: description` |
+| Atom or feedparser summary | `abstract_tag: summary` |
+| Feed with encoded full content | `abstract_tag: content` |
 
-```bash
-curl -sL "https://journal.example.com/feed.rss" | head -100
-```
-
-Common mappings:
-
-| Publisher | `link_tag` | `abstract_tag` |
-|-----------|------------|----------------|
-| Science / AAAS | `link` | `summary` |
-| Wiley (AGU) | `link` | `content` |
-| OUP | `link` | `summary` |
-| ScienceDirect | `link` | `summary` |
-| Copernicus OJS | `link` | `description` |
-
-If the abstract is missing or truncated in RSS, add metadata fallback:
+If the log shows empty or bibliographic-only Abstracts, add fallback sources:
 
 ```yaml
 metadata_fallback:
   - openalex
   - crossref
+abstract_fallback:
+  - html
 min_abstract_length: 500
 ```
 
-## 2. Broad feed with keyword + LLM filter
+OpenAlex and Crossref are matched conservatively. Adding the journal's `full_title` and `issn` improves matching.
 
-For high-volume journals (Nature, Science, PNAS topic feeds), use a two-stage filter:
+## Filter a broad feed
+
+Apply inexpensive rules before an LLM filter:
 
 ```yaml
-- title: Nature
-  full_title: Nature
-  issn: "0028-0836"
-  rss_url: https://www.nature.com/nature.rss
+- title: Broad Journal
+  full_title: Journal of Broad Science
+  issn: "1234-5678"
+  rss_url: https://journal.example.org/feed.xml
   slack_channel_id: C01234567
   include_keywords:
-    - your-keyword
-    - another-keyword
+    - battery
+    - electrochemical
   exclude_title_patterns:
     - Editorial
-    - News
+    - Correction
     - Book Review
   metadata_fallback:
     - openalex
     - crossref
   prefilter:
-    method: llm
-    provider: github
+    provider: openai
     target_scope: >
-      Describe precisely what papers in YOUR FIELD are relevant.
-      List irrelevant categories explicitly.
-  prefilter_uncertain: skip
+      Include experimental or computational studies of battery degradation,
+      interfaces, and ion transport. Exclude grid-economics-only papers.
+  prefilter_uncertain: post
 ```
 
-**Tips for writing `target_scope`:**
+Tips for `target_scope`:
 
-- Be specific about what is relevant and irrelevant
-- Mention edge cases (e.g. "climate papers are irrelevant unless they discuss crustal deformation")
-- State how to handle uncertainty
+- Describe the intended readers.
+- List both included and excluded topics.
+- Explain boundary cases that keywords alone cannot distinguish.
+- Prefer `prefilter_uncertain: post` until you have reviewed dry-run results.
 
-## 3. Springer Nature Meta API
-
-For journals without reliable RSS, or to query across ISSNs:
-
-1. Register for a [Springer Nature Meta API](https://dev.springernature.com/) key
-2. Add `springer_api_key` to `secrets.yaml`
-3. Configure:
-
-```yaml
-- title: My Springer Journal
-  source_type: springer_api
-  springer_queries:
-    - '(issn:1234-5678 AND ("keyword-one" OR "keyword-two"))'
-  springer_page_size: 25
-  springer_max_pages: 2
-  slack_channel_id: C01234567
-  metadata_fallback:
-    - openalex
-    - crossref
-  prefilter:
-    method: llm
-    provider: github
-    target_scope: >
-      Papers relevant to [YOUR FIELD].
-```
-
-Use `scripts/estimate_springer_volume.sh` (requires `SPRINGER_API_KEY`) to estimate how many papers your query returns and tune `springer_max_pages`.
-
-## 4. Copernicus recent preprints
-
-For Copernicus journals where the standard RSS feed is unreliable:
-
-```yaml
-- title: EGUsphere
-  source_type: copernicus_recent
-  rss_url: https://egusphere.copernicus.org/
-  copernicus_recent_url: https://egusphere.copernicus.org/
-  copernicus_recent_max_entries: 100
-  abstract_tag: summary
-  slack_channel_id: C01234567
-  include_keywords:
-    - your-topic
-  metadata_fallback:
-    - openalex
-    - crossref
-```
-
-## 5. arXiv category
-
-Add or extend the `arxiv` section in your workspace:
+## arXiv
 
 ```yaml
 arxiv:
@@ -137,33 +79,126 @@ arxiv:
     - cs.LG
     - stat.ML
   keywords:
-    - transformer
     - diffusion
+    - foundation model
 ```
 
-Browse categories at [arxiv.org/category_taxonomy](https://arxiv.org/category_taxonomy).
+Find category IDs in the [arXiv category taxonomy](https://arxiv.org/category_taxonomy). Keywords are optional and matched against the Abstract.
 
-## 6. Test before going live
+## EarthArXiv
 
-Always test new sources with dry run:
+```yaml
+eartharxiv:
+  slack_channel_id: C01234567
+  keywords:
+    - earthquake
+    - fault
+```
+
+EarthArXiv records are retrieved through OAI-PMH. Keywords are matched against title and Abstract.
+
+## Springer Nature Meta API
+
+1. Obtain a Springer Nature API key.
+2. Add `springer_api_key` to local `secrets.yaml`, or add `SPRINGER_API_KEY` as a GitHub Actions repository secret.
+3. Add a source:
+
+```yaml
+- title: Springer Example
+  source_type: springer_api
+  springer_queries:
+    - '(issn:1234-5678 AND ("battery" OR "electrochemical"))'
+  springer_page_size: 20
+  springer_max_pages: 5
+  slack_channel_id: C01234567
+  metadata_fallback:
+    - openalex
+    - crossref
+```
+
+Use `scripts/estimate_springer_volume.sh` to estimate result volume and choose `springer_max_pages`:
+
+```bash
+export SPRINGER_API_KEY="your-key"
+CONFIG_FILE=config.yaml DAYS=31 bash scripts/estimate_springer_volume.sh
+```
+
+## Copernicus recent-preprint page
+
+```yaml
+- title: Copernicus Example
+  source_type: copernicus_recent
+  copernicus_recent_url: https://journal.copernicus.org/
+  copernicus_recent_max_entries: 100
+  slack_channel_id: C01234567
+  include_keywords:
+    - your topic
+```
+
+This adapter parses a Copernicus recent-listing HTML page. Publisher layout changes can require parser updates, so always verify it with a dry run.
+
+## AGU / Wiley keyword and taxonomy feeds
+
+```yaml
+- title: AGU Example
+  source_type: agu_taxonomy
+  slack_channel_id: C01234567
+  agu_search_terms:
+    - earthquake
+    - seismic
+  agu_taxonomies:
+    - name: Verified taxonomy label
+      concept_id: 123456
+      group: Solid Earth
+      direct_accept: false
+  exclude_title_patterns:
+    - Correction
+    - Editorial
+  prefilter:
+    provider: openai
+    target_scope: >
+      Describe which AGU papers are useful to the group.
+  prefilter_uncertain: post
+```
+
+The adapter:
+
+1. Fetches every configured broad search term.
+2. Fetches every configured taxonomy concept.
+3. Merges duplicate records by DOI, then normalized URL.
+4. Keeps matched search and taxonomy labels as relevance context.
+5. Classifies, summarizes, and posts each unique paper once.
+
+Wiley search identifiers are not universal standards. Verify every `concept_id` against the current publisher search page. An invalid or obsolete ID may return an empty feed.
+
+## Validate a new source
+
+Run tests first:
+
+```bash
+python -m pytest
+```
+
+Fetch and filter without API calls or Slack posts:
+
+```bash
+DRY_RUN=true python main.py
+```
+
+Include OpenAI classification and summaries without posting:
 
 ```bash
 DRY_RUN=true DRY_RUN_CLASSIFY=true DRY_RUN_SUMMARIZE=true python main.py
 ```
 
-Optionally redirect to a test channel:
+Redirect a real post test to a dedicated channel:
 
 ```bash
-DRY_RUN=false OVERRIDE_SLACK_CHANNEL_ID=C0TESTCHANNEL python main.py
+OVERRIDE_SLACK_CHANNEL_ID=C0TESTCHANNEL python main.py
 ```
 
-Use a separate posted log during testing:
+To avoid touching normal duplicate state during local experiments:
 
 ```bash
 POSTED_FILE=posted_entries_test.txt DRY_RUN=true python main.py
 ```
-
-## Example configurations
-
-- **Starter template**: [`config.yaml`](../config.yaml)
-- **Full solid-Earth geophysics setup**: [`examples/config.solid-earth.yaml`](../examples/config.solid-earth.yaml)

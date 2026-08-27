@@ -33,8 +33,12 @@ def _run_timed_source(
     posted: dict,
 ) -> None:
     t = time.monotonic()
-    runner(client, source_cfg, hours_back, posted)
-    print(f"[TIMER] {label}={time.monotonic() - t:.1f}s")
+    try:
+        runner(client, source_cfg, hours_back, posted)
+    except Exception:
+        logging.exception("Source failed: %s", label)
+    finally:
+        print(f"[TIMER] {label}={time.monotonic() - t:.1f}s")
 
 
 def _iter_workspace_sources(ws: dict) -> list[tuple[str, SourceRunner, dict]]:
@@ -60,7 +64,10 @@ def main() -> None:
     print(f"[TIMER] loaded_posted={len(posted)}")
 
     for ws in config.get("workspaces", []):
-        name = ws.get("name")
+        name = str(ws.get("name") or "").strip()
+        if not name:
+            logging.error("Workspace is missing a name; skipping it")
+            continue
 
         token = _get_slack_token(name)
         if not token:
